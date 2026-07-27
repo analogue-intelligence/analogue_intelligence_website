@@ -42,7 +42,8 @@ export const CURATOR = {
     {
       q: 'What is Analogue Intelligence?',
       answer: [
-        'A research group studying how intelligent systems are built, embodied and understood — treating software, models, hardware and art as one practice rather than four.',
+        'We investigate how software and intelligent systems are engineered, executed, and maintained when code interacts with the physical, tangible, and creative worlds',
+        // 'A research group studying how intelligent systems are built, embodied and understood — treating software, models, hardware and art as one practice rather than four.',
         'The name is a small joke and a serious claim: we care about intelligence that has to survive contact with a physical room, not only a leaderboard.',
       ],
     },
@@ -56,6 +57,7 @@ export const CURATOR = {
     {
       q: 'Who works here?',
       answer: [
+        'Our lab is inherently multidisciplinary. We bring together computer scientists, designers, artists, historians, and thinkers from across disciplines to tackle complex problems from every angle.',
         'Three of us are usually somewhere on the floor. Walk up to anyone and click them — they will tell you what they are working on far more enthusiastically than I will.',
       ],
     },
@@ -63,9 +65,9 @@ export const CURATOR = {
       q: 'Can I work or study with you?',
       answer: [
         'Gladly. We supervise theses and projects, and collaborate with researchers, industry and artists.',
-        'The notice board by the window has the details, or write to us directly.',
+        'The notice board by the window has the details, or if you have an idea, please write to us directly.',
       ],
-      action: { label: 'Get in touch →', href: 'mailto:hello@analogue-intelligence.org' },
+      action: { label: 'Get in touch →', href: 'mailto:m.verano.merino@vu.nl' },
     },
     {
       q: 'How do I get around?',
@@ -143,7 +145,7 @@ export const MEMBERS = [
       },
       {
         q: 'Where can I read your work?',
-        answer: ['Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.'],
+        answer: ['You can find my work on my personal website.'],
         action: { label: 'maveme.github.io →', href: 'https://maveme.github.io/' },
       },
       {
@@ -156,7 +158,7 @@ export const MEMBERS = [
   {
     id: 'member_banno',
     name: 'Banno',
-    role: 'Lecturer · Artificial Intelligence, Faculty of Science, VU Amsterdam',
+    role: 'Junior Lecturer · Artificial Intelligence, Faculty of Science, VU Amsterdam',
     accent: '#5e8a5a',
     room: 'hall',
     appearance: {

@@ -71,9 +71,9 @@ export const CONTENT = {
 
   ex_origin: {
     category: 'vision',
-    title: 'Analogue Intelligence',
+    title: 'Analogue Intelligence Lab',
     tag: 'Nested squares, glowing faintly',
-    subtitle: 'The other AI',
+    subtitle: 'Software Engineering for Creative & Physical Systems',
     body: [
       'A research group at the intersection of software engineering and creative computing, studying how intelligent systems are built, embodied, and understood.',
       'We treat models, hardware, engineering and art as one practice rather than four departments. Less interested in intelligence measured on a leaderboard than in intelligence that holds up in a room with furniture in it.',
