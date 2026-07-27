@@ -1,89 +1,123 @@
 import * as THREE from 'three';
 
 // -----------------------------------------------------------------------------
-// ProximityManager — every frame, checks which interactables fall inside the
-// player's lamp radius. Revealed objects (a) glow up their emissive, and (b) get
-// an HTML label positioned over them in screen space. Clicking a label or its
-// mesh fires onActivate(interactable). Objects outside the lamp go dark + hide.
+// ProximityManager — decides what is close enough to notice.
+//
+// Each frame it measures every interactable against the player, eases a glow
+// value, parks an HTML chip over the ones in range, and keeps track of the
+// single nearest one so the E key has something obvious to act on.
+//
+// Objects on another floor are ignored outright: standing in the hall should not
+// light up a book directly above you in the library.
 // -----------------------------------------------------------------------------
 export class ProximityManager {
   constructor(engine, player, interactables, labelLayer) {
     this.engine = engine;
     this.player = player;
     this.items = interactables;
-    this.layer = labelLayer;      // a DOM element that holds label chips
-    this.revealRadius = 7.5;
+    this.layer = labelLayer;
+    this.revealRadius = 8.0;
     this.onActivate = () => {};
+    this.canActivate = () => true;      // main.js narrows this to lit rooms
     this.onDiscover = () => {};
+    this.nearest = null;
     this._raycaster = new THREE.Raycaster();
     this._v = new THREE.Vector3();
 
-    // Build one label chip per interactable.
     for (const it of this.items) {
       const el = document.createElement('button');
       el.className = 'obj-label';
       el.style.setProperty('--accent', it.color);
       el.innerHTML =
         `<span class="obj-cat">${it.categoryLabel}</span>` +
-        `<span class="obj-tag">${it.tag}</span>`;
+        `<span class="obj-tag">${it.tag}</span>` +
+        `<span class="obj-key">E</span>`;
       el.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (it.revealed) this.onActivate(it);
+        this.onActivate(it);
       });
       it._label = el;
       this.layer.appendChild(el);
     }
   }
 
-  // Called by Input.onObjectClick — returns true if a revealed mesh was hit,
-  // which tells Input to NOT treat the click as a move command.
+  /**
+   * Called from Input — true means "this click was consumed by an object".
+   *
+   * Clicking used to require standing inside the reveal radius, which made the
+   * mouse feel broken: you could plainly see a plinth, click it, and walk
+   * somewhere instead. Anything you can see is now clickable. The one guard is
+   * that objects in rooms you haven't entered stay unclickable, so a click
+   * can't reach through the dark and spoil the reveal.
+   */
   tryClick(pointer) {
     this._raycaster.setFromCamera(pointer, this.engine.camera);
-    const meshes = this.items.filter((i) => i.revealed).map((i) => i.mesh);
-    const hit = this._raycaster.intersectObjects(meshes, false)[0];
-    if (!hit) return false;
-    const it = this.items.find((i) => i.mesh === hit.object);
-    if (it) { this.onActivate(it); return true; }
+    let best = null, bestDist = Infinity;
+    for (const it of this.items) {
+      if (!this.canActivate(it)) continue;
+      const hit = this._raycaster.intersectObject(it.object, true)[0];
+      if (hit && hit.distance < bestDist) { best = it; bestDist = hit.distance; }
+    }
+    if (best) { this.onActivate(best); return true; }
+    return false;
+  }
+
+  /** Activate whatever is closest — the E key path. */
+  activateNearest() {
+    if (this.nearest) { this.onActivate(this.nearest); return true; }
     return false;
   }
 
   update(dt) {
     const p = this.player.position;
+    let nearest = null, nearestD = Infinity;
+    const R2 = this.revealRadius * this.revealRadius;
+
     for (const it of this.items) {
-      const dist = it.anchor.distanceTo(p);
-      const wasRevealed = it.revealed;
-      it.revealed = dist < this.revealRadius;
-
-      // Ease emissive glow in/out.
-      const targetGlow = it.revealed ? 1 : 0;
-      it._glow += (targetGlow - it._glow) * Math.min(dt * 6, 1);
-      if (it.mesh.material.emissive) {
-        it.mesh.material.emissive.set(it.color);
-        it.mesh.material.emissiveIntensity = it._glow * 0.8;
+      // Cheap rejection first: squared distance, no sqrt, and skip the DOM
+      // entirely for the twenty-odd objects that are nowhere near you.
+      const d2 = it.anchor.distanceToSquared(p);
+      if (d2 > R2 * 4 && it._glow < 0.005) {
+        if (it._label.style.opacity !== '0') {
+          it._label.style.opacity = '0';
+          it._label.style.pointerEvents = 'none';
+        }
+        it.revealed = false;
+        continue;
       }
+      const sameFloor = Math.abs(it.anchor.y - p.y) < 4.5;
+      const dist = Math.sqrt(d2);
+      const wasRevealed = it.revealed;
+      it.revealed = sameFloor && dist < this.revealRadius;
 
-      // First discovery cue.
+      if (it.revealed && dist < nearestD) { nearest = it; nearestD = dist; }
+
+      const target = it.revealed ? 1 : 0;
+      const g = it._glow + (target - it._glow) * Math.min(dt * 6, 1);
+      it.setGlow(g);
+
       if (it.revealed && !it.discovered) { it.discovered = true; this.onDiscover(it); }
 
-      // Position / show the HTML label.
       const el = it._label;
-      if (it._glow > 0.05) {
-        this._v.copy(it.anchor).project(this.engine.camera);
-        const x = (this._v.x * 0.5 + 0.5) * window.innerWidth;
-        const y = (-this._v.y * 0.5 + 0.5) * window.innerHeight;
-        const onScreen = this._v.z < 1 && x > 0 && x < window.innerWidth;
-        el.style.opacity = onScreen ? it._glow.toFixed(2) : '0';
-        el.style.transform = `translate(-50%, -120%) translate(${x}px, ${y}px)`;
+      if (g > 0.04) {
+        const s = this.engine.project(it.anchor, this._v);
+        const onScreen = s.visible && s.x > -80 && s.x < window.innerWidth + 80;
+        el.style.opacity = onScreen ? g.toFixed(2) : '0';
+        el.style.transform = `translate(-50%, -120%) translate(${s.x}px, ${s.y}px)`;
+        el.style.pointerEvents = it.revealed && onScreen ? 'auto' : 'none';
         el.classList.toggle('is-live', it.revealed);
-        el.style.pointerEvents = it.revealed ? 'auto' : 'none';
       } else {
         el.style.opacity = '0';
         el.style.pointerEvents = 'none';
       }
 
-      if (it.revealed !== wasRevealed && it.revealed) {
+      if (it.revealed && !wasRevealed) {
         el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop');
       }
     }
+
+    // only the closest object advertises the E key
+    for (const it of this.items) it._label.classList.toggle('is-nearest', it === nearest);
+    this.nearest = nearest;
   }
 }

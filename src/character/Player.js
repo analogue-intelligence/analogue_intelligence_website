@@ -2,46 +2,54 @@ import * as THREE from 'three';
 import { buildFigure } from './figure.js';
 
 // -----------------------------------------------------------------------------
-// Player — the chibi visitor. 3D movement via the Levels system (walkable
-// mezzanine), collision against per-floor furniture, a soft warm lamp for mood
-// (the room itself is daylit now), a walk animation, and an intro pop-in.
+// Player — the visitor.
+//
+// Movement is axis-separated so sliding along a wall feels right instead of
+// stopping dead, and every candidate position is checked against Nav, which
+// answers with a floor height or a refusal. Colliders carry the floor they sit
+// on, so a bookshelf upstairs can't block you downstairs.
 // -----------------------------------------------------------------------------
 export class Player {
-  constructor(colliders, levels) {
+  constructor(colliders, nav, appearance) {
     this.colliders = colliders;
-    this.levels = levels;
-    this.speed = 6.5;
-    this.radius = 0.7;
-    this.level = 'ground';
+    this.nav = nav;
+    this.speed = 7.6;
+    this.radius = 0.62;
     this._targetY = 0;
     this._stepAccum = 0;
     this._t = 0;
     this.onFootstep = () => {};
     this.moving = false;
+    this.group = new THREE.Group();
+    this.figure = null;
 
-    this.figure = buildFigure({
-      skin: '#e79a5c', coat: '#c65a2e', coatTrim: '#9c3f1e',
-      hair: '#2e2118', variant: 'player', scarf: '#e0c060',
-    });
-    this.group = this.figure.group;
-
-    // soft warm personal light (subtle in a bright room, adds a glow at night-y corners)
-    this.lamp = new THREE.PointLight(0xffd9a0, 10, 9, 2);
+    this.lamp = new THREE.PointLight(0xffd9a0, 7, 8, 2);
     this.lamp.position.set(0, 2.2, 0);
     this.group.add(this.lamp);
 
-    this.group.scale.setScalar(0.001);   // hidden until intro reveals us
+    this.setAppearance(appearance);
+    this.group.scale.setScalar(0.001);
     this.revealed = false;
   }
 
+  /** Rebuild the body from a new appearance — used by the character creator. */
+  setAppearance(appearance) {
+    if (this.figure) this.group.remove(this.figure.group);
+    this.figure = buildFigure(appearance);
+    this.appearance = this.figure.appearance;
+    this.group.add(this.figure.group);
+  }
+
   get position() { return this.group.position; }
+  get y() { return this.group.position.y; }
+
   setPosition(v) { this.group.position.copy(v); this._targetY = v.y; }
 
-  reveal() {                              // intro pop-in
+  reveal() {
     this.revealed = true;
     const start = performance.now();
     const anim = () => {
-      const k = Math.min((performance.now() - start) / 450, 1);
+      const k = Math.min((performance.now() - start) / 480, 1);
       const e = 1 - Math.pow(1 - k, 3);
       this.group.scale.setScalar(0.001 + e);
       if (k < 1) requestAnimationFrame(anim); else this.group.scale.setScalar(1);
@@ -55,46 +63,53 @@ export class Player {
     if (dir) { input.moveTarget = null; }
     else if (input.moveTarget) {
       const to = input.moveTarget.clone().sub(this.group.position); to.y = 0;
-      if (to.length() < 0.3) input.moveTarget = null;
+      if (to.length() < 0.35) input.moveTarget = null;
       else dir = to.normalize();
     }
 
     this.moving = false;
     if (dir && this.revealed) {
-      const prev = this.group.position.clone();
       const step = dir.clone().multiplyScalar(this.speed * dt);
-      this._moveAxis('x', step.x);
-      this._moveAxis('z', step.z);
-      const r = this.levels.resolve(this.group.position.x, this.group.position.z, this.level);
-      if (!r.ok) { this.group.position.copy(prev); }
-      else {
-        this.level = r.level; this._targetY = r.y; this.moving = true;
+      const movedX = this._tryAxis('x', step.x);
+      const movedZ = this._tryAxis('z', step.z);
+
+      if (movedX || movedZ) {
+        this.moving = true;
         this._stepAccum += this.speed * dt;
-        if (this._stepAccum > 2.0) { this._stepAccum = 0; this.onFootstep(); }
+        if (this._stepAccum > 2.1) { this._stepAccum = 0; this.onFootstep(); }
       }
       const angle = Math.atan2(dir.x, dir.z);
-      this.group.rotation.y += ((angle - this.group.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI) * Math.min(dt * 10, 1);
+      this.group.rotation.y +=
+        ((angle - this.group.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI) * Math.min(dt * 11, 1);
     }
 
-    this.group.position.y += (this._targetY - this.group.position.y) * Math.min(dt * 9, 1);
+    this.group.position.y += (this._targetY - this.group.position.y) * Math.min(dt * 10, 1);
     this.figure.animate(this._t, this.moving);
-    this.lamp.intensity = 10 + Math.sin(this._t * 6) * 1.2;
+    this.lamp.intensity = 7 + Math.sin(this._t * 5) * 0.8;
   }
 
-  _moveAxis(axis, amount) {
-    if (amount === 0) return;
-    const next = this.group.position.clone();
-    next[axis] += amount;
-    if (!this._collides(next)) this.group.position[axis] += amount;
+  /** Try to move on one axis; commit only if there's a legal floor and no prop. */
+  _tryAxis(axis, amount) {
+    if (Math.abs(amount) < 1e-5) return false;
+    const p = this.group.position;
+    const nx = axis === 'x' ? p.x + amount : p.x;
+    const nz = axis === 'z' ? p.z + amount : p.z;
+
+    const r = this.nav.resolve(nx, nz, this._targetY);
+    if (!r.ok) return false;
+    if (this._collides(nx, nz, r.y)) return false;
+
+    p[axis] += amount;
+    this._targetY = r.y;
+    return true;
   }
 
-  _collides(pos) {
+  _collides(x, z, y) {
     for (const c of this.colliders) {
-      if (c.level && c.level !== this.level) continue;
+      if (Math.abs((c.y ?? 0) - y) > 2.2) continue;
       const hx = c.w / 2 + this.radius, hz = c.d / 2 + this.radius;
-      if (Math.abs(pos.x - c.x) < hx && Math.abs(pos.z - c.z) < hz) return true;
+      if (Math.abs(x - c.x) < hx && Math.abs(z - c.z) < hz) return true;
     }
-    if (Math.abs(pos.x) > 12.2 || Math.abs(pos.z) > 12.2) return true;
     return false;
   }
 }

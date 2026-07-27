@@ -1,100 +1,99 @@
+import { ROOMS, BOUNDS, STAIRS } from '../world/floorplan.js';
+
 // -----------------------------------------------------------------------------
-// Minimap — a small top-down canvas (top-right) drawn each frame. Shows the room
-// outline, furniture, the balcony + stairs, the guide, and interactables (dim
-// until discovered, then lit in their category colour). The player is a dot with
-// a facing tick and a ring for the lamp radius.
+// Minimap — a plan of the building drawn straight from floorplan.js, so it can
+// never drift out of step with the walls you're actually walking into. Rooms
+// you haven't entered are drawn as empty outlines; the one you're standing in
+// picks up its own accent colour.
 // -----------------------------------------------------------------------------
+
+const PAD = 8;
+
 export class Minimap {
-  constructor(root, room, player, guide, revealRadius) {
-    this.room = room;
+  constructor(root, player, roomManager) {
     this.player = player;
-    this.guide = guide;
-    this.revealRadius = revealRadius;
-    this.levels = room.levels;
+    this.rooms = roomManager;
+    this.visible = true;
 
-    this.size = 160;
-    this.wrap = document.createElement('div');
-    this.wrap.className = 'minimap';
+    this.el = document.createElement('div');
+    this.el.className = 'minimap';
     this.canvas = document.createElement('canvas');
-    this.canvas.width = this.size; this.canvas.height = this.size;
-    this.levelTag = document.createElement('span');
-    this.levelTag.className = 'minimap-tag';
-    this.wrap.appendChild(this.canvas);
-    this.wrap.appendChild(this.levelTag);
-    root.appendChild(this.wrap);
+    this.canvas.width = 260; this.canvas.height = 210;
+    this.el.appendChild(this.canvas);
+    this.label = document.createElement('div');
+    this.label.className = 'minimap-label';
+    this.el.appendChild(this.label);
+    root.appendChild(this.el);
 
-    this.ctx = this.canvas.getContext('2d');
-    this.HALF = 13;
+    this.g = this.canvas.getContext('2d');
+    const w = BOUNDS.x1 - BOUNDS.x0, d = BOUNDS.z1 - BOUNDS.z0;
+    this.scale = Math.min((this.canvas.width - PAD * 2) / w, (this.canvas.height - PAD * 2) / d);
+    this.ox = PAD + ((this.canvas.width - PAD * 2) - w * this.scale) / 2;
+    this.oz = PAD + ((this.canvas.height - PAD * 2) - d * this.scale) / 2;
   }
+
+  toggle() { this.visible = !this.visible; this.el.classList.toggle('hidden', !this.visible); }
+  show(v) { this.visible = v; this.el.classList.toggle('hidden', !v); }
 
   _p(x, z) {
-    const s = this.size, h = this.HALF;
-    return [((x + h) / (h * 2)) * s, ((z + h) / (h * 2)) * s];
+    return [this.ox + (x - BOUNDS.x0) * this.scale, this.oz + (z - BOUNDS.z0) * this.scale];
   }
 
-  draw() {
-    const ctx = this.ctx, s = this.size;
-    ctx.clearRect(0, 0, s, s);
+  update(dt = 0.016) {
+    if (!this.visible) return;
+    // Redrawing a 260x210 canvas 60 times a second to move one dot is pure
+    // waste. Ten times a second is indistinguishable.
+    this._acc = (this._acc ?? 0) + dt;
+    if (this._acc < 0.1) return;
+    this._acc = 0;
+    const g = this.g;
+    g.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // room fill + border
-    ctx.fillStyle = 'rgba(10,8,16,0.9)';
-    ctx.fillRect(0, 0, s, s);
-    ctx.strokeStyle = 'rgba(241,236,224,0.25)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(1, 1, s - 2, s - 2);
+    const here = this.rooms.current?.spec ?? null;
 
-    // mezzanine footprint (dim)
-    const mz = this.levels.mez;
-    const [mx0, mz0] = this._p(mz.x0, mz.z0);
-    const [mx1, mz1] = this._p(mz.x1, mz.z1);
-    ctx.fillStyle = 'rgba(123,44,191,0.18)';
-    ctx.fillRect(mx0, mz0, mx1 - mx0, mz1 - mz0);
+    for (const r of ROOMS) {
+      const [x0, z0] = this._p(r.x0, r.z0);
+      const [x1, z1] = this._p(r.x1, r.z1);
+      const entry = this.rooms.rooms.find((e) => e.spec.id === r.id);
+      const seen = entry?.visited;
+      const isHere = here && here.id === r.id;
 
-    // stairs
-    const st = this.levels.stairs;
-    const [sx0, sz0] = this._p(st.x0, st.z0);
-    const [sx1, sz1] = this._p(st.x1, st.z1);
-    ctx.fillStyle = 'rgba(255,183,3,0.25)';
-    ctx.fillRect(sx0, sz0, sx1 - sx0, sz1 - sz0);
+      g.fillStyle = isHere ? hexA(r.accent, 0.34) : seen ? 'rgba(231,224,210,0.13)' : 'rgba(231,224,210,0.04)';
+      g.fillRect(x0, z0, x1 - x0, z1 - z0);
+      g.strokeStyle = isHere ? r.accent : seen ? 'rgba(231,224,210,0.42)' : 'rgba(231,224,210,0.16)';
+      g.lineWidth = isHere ? 2 : 1;
+      g.strokeRect(x0, z0, x1 - x0, z1 - z0);
 
-    // furniture
-    ctx.fillStyle = 'rgba(241,236,224,0.28)';
-    for (const c of this.room.colliders) {
-      if (c.level === null) continue; // skip walls
-      const [px, pz] = this._p(c.x - c.w / 2, c.z - c.d / 2);
-      const [qx, qz] = this._p(c.x + c.w / 2, c.z + c.d / 2);
-      ctx.globalAlpha = c.level === this.player.level ? 0.9 : 0.35;
-      ctx.fillRect(px, pz, qx - px, qz - pz);
-    }
-    ctx.globalAlpha = 1;
-
-    // interactables
-    for (const it of this.room.interactables) {
-      const [px, pz] = this._p(it.anchor.x, it.anchor.z);
-      ctx.beginPath();
-      ctx.arc(px, pz, 3.2, 0, Math.PI * 2);
-      ctx.fillStyle = it.discovered ? it.color : 'rgba(241,236,224,0.3)';
-      ctx.fill();
+      if (seen) {
+        g.fillStyle = isHere ? '#f0e9da' : 'rgba(231,224,210,0.55)';
+        g.font = '600 8px "Space Mono", monospace';
+        g.textAlign = 'center';
+        g.fillText(r.name.toUpperCase(), (x0 + x1) / 2, (z0 + z1) / 2 + 3);
+      }
     }
 
-    // guide
-    const [gx, gz] = this._p(this.guide.group.position.x, this.guide.group.position.z);
-    ctx.beginPath(); ctx.arc(gx, gz, 3, 0, Math.PI * 2);
-    ctx.strokeStyle = '#ffb703'; ctx.lineWidth = 1.6; ctx.stroke();
+    // the stair run, so the way upstairs is legible on the plan
+    const [sx0, sz0] = this._p(STAIRS.x0, STAIRS.zTop);
+    const [sx1, sz1] = this._p(STAIRS.x1, STAIRS.zBottom);
+    g.strokeStyle = 'rgba(231,224,210,0.4)';
+    g.lineWidth = 1;
+    for (let i = 0; i <= 6; i++) {
+      const y = sz0 + ((sz1 - sz0) * i) / 6;
+      g.beginPath(); g.moveTo(sx0, y); g.lineTo(sx1, y); g.stroke();
+    }
 
-    // player + lamp radius + facing
-    const [px, pz] = this._p(this.player.position.x, this.player.position.z);
-    const rr = (this.revealRadius / (this.HALF * 2)) * s;
-    ctx.beginPath(); ctx.arc(px, pz, rr, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,207,158,0.10)'; ctx.fill();
-    ctx.beginPath(); ctx.arc(px, pz, 3.4, 0, Math.PI * 2);
-    ctx.fillStyle = '#ffcf9e'; ctx.fill();
-    const ang = this.player.group.rotation.y;
-    ctx.beginPath(); ctx.moveTo(px, pz);
-    ctx.lineTo(px + Math.sin(ang) * 7, pz + Math.cos(ang) * 7);
-    ctx.strokeStyle = '#ffcf9e'; ctx.lineWidth = 1.5; ctx.stroke();
+    // you
+    const p = this.player.position;
+    const [px, pz] = this._p(p.x, p.z);
+    g.fillStyle = '#f4e7c8';
+    g.beginPath(); g.arc(px, pz, 3.2, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(20,24,30,0.9)'; g.lineWidth = 1.2; g.stroke();
 
-    this.levelTag.textContent = this.player.level === 'mezzanine' ? 'Library ↑' :
-      this.player.level === 'stairs' ? 'Stairs' : 'Ground';
+    this.label.textContent = here ? here.name : 'Outside';
   }
+}
+
+function hexA(hex, a) {
+  const n = parseInt(String(hex).replace('#', ''), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }

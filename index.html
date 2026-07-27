@@ -1,22 +1,25 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Analogue Intelligence — Enter the Library</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Crect%20width%3D%22100%22%20height%3D%22100%22%20fill%3D%22%230a0810%22/%3E%3Ccircle%20cx%3D%2250%22%20cy%3D%2250%22%20r%3D%2230%22%20fill%3D%22%23ffb703%22/%3E%3C/svg%3E">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>Analogue Intelligence Research Group</title>
+  <meta name="description" content="An explorable building for the Analogue Intelligence research group: a hall of projects, a robotics lab, a creative studio and a library." />
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Grotesk:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&family=Newsreader:ital,opsz,wght@0,6..72,300..600;1,6..72,300..500&display=swap"
+    rel="stylesheet" />
 
   <link rel="stylesheet" href="./src/styles/ui.css" />
 
-  <!-- Three.js resolved from a CDN. No build step required; serve over http. -->
+  <!-- No build step: the browser resolves bare "three" imports through this map. -->
   <script type="importmap">
   {
     "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
     }
   }
   </script>
@@ -24,6 +27,57 @@
 <body>
   <canvas id="scene"></canvas>
   <div id="ui-root"></div>
+
+  <noscript>
+    <div style="padding:40px;font-family:sans-serif;color:#e7e0d2">
+      This site is a 3D building. It needs JavaScript to stand up.
+    </div>
+  </noscript>
+
+  <!--
+    If anything throws before the first frame, the page would otherwise just sit
+    there dark — the stylesheet loads, nothing else does. This puts the actual
+    error on screen instead of hiding it in the console.
+  -->
+  <script>
+    (function () {
+      var shown = false;
+      function report(what, where) {
+        if (shown) return; shown = true;
+        var d = document.createElement('div');
+        d.setAttribute('style',
+          'position:fixed;inset:0;z-index:9999;overflow:auto;padding:48px;' +
+          'background:#12161c;color:#e7e0d2;font:13px/1.6 ui-monospace,monospace');
+        d.innerHTML =
+          '<div style="font:700 24px/1.2 Georgia,serif;margin-bottom:6px">The building did not stand up.</div>' +
+          '<div style="color:#c9a24a;letter-spacing:.16em;font-size:10px;text-transform:uppercase;margin-bottom:26px">boot error</div>' +
+          '<pre style="white-space:pre-wrap;color:#e08a72;margin:0 0 22px">' +
+            String(what).replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }) +
+          '</pre>' +
+          '<div style="color:rgba(231,224,210,.55)">' + where + '</div>';
+        document.body.appendChild(d);
+      }
+      window.addEventListener('error', function (e) {
+        if (e.target && e.target.tagName === 'SCRIPT') {
+          report('Failed to load ' + (e.target.src || 'a script'),
+            'Check that you are serving over http:// and not opening the file directly, and that three.js could be fetched from the CDN.');
+        } else {
+          report((e.error && e.error.stack) || e.message, (e.filename || '') + ':' + e.lineno);
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function (e) {
+        report((e.reason && e.reason.stack) || e.reason, 'unhandled promise rejection');
+      });
+      // If the module never runs at all, say so rather than showing nothing.
+      setTimeout(function () {
+        if (!window.AI && !shown) {
+          report('main.js did not finish loading within 12 seconds.',
+            'Most often this is the import map: three.js is fetched from jsDelivr, so the first load needs a network connection. Vendor it locally if you are working offline — see the README.');
+        }
+      }, 12000);
+    })();
+  </script>
+
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

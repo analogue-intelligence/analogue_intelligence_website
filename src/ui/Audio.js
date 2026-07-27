@@ -1,8 +1,14 @@
 // -----------------------------------------------------------------------------
-// Audio — everything is synthesised at runtime; there are no sound files. A low
-// ambient drone (two detuned oscillators + filtered noise) sets the room tone;
-// footsteps, reveal chimes, and UI clicks are short synthesised events. All
-// defensive: if WebAudio is unavailable it silently no-ops.
+// Audio — everything is synthesised at runtime; there are no sound files.
+//
+// A low ambient drone (two detuned sines with a slow tremolo, plus filtered
+// noise for air) sets the room tone; footsteps, reveal chimes and UI clicks are
+// short synthesised events. All defensive: if WebAudio is unavailable it
+// silently no-ops.
+//
+// This is the original sound design from the single-room build, kept intact —
+// the drone is what makes the place feel like an interior rather than a void.
+// The only additions are a door thunk and the small aliases the newer UI calls.
 // -----------------------------------------------------------------------------
 export class Audio {
   constructor() {
@@ -11,9 +17,12 @@ export class Audio {
     this.ctx = null;
     this.master = null;
     this._noiseBuf = null;
+
+    // Autoplay policy: nothing may exist until the first gesture.
+    const boot = () => { this.init(); window.removeEventListener('pointerdown', boot); };
+    window.addEventListener('pointerdown', boot);
   }
 
-  // Must be called from a user gesture (autoplay policy).
   init() {
     if (this.ready) return;
     try {
@@ -119,4 +128,26 @@ export class Audio {
     osc.connect(g).connect(this.master);
     osc.start(now); osc.stop(now + 0.07);
   }
+
+  // The front door closing behind you — same idiom, one octave under the drone.
+  door() {
+    if (!this.ready || this.muted) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.exponentialRampToValueAtTime(48, now + 0.32);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0, now);
+    g.gain.linearRampToValueAtTime(0.16, now + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    osc.connect(g).connect(this.master);
+    osc.start(now); osc.stop(now + 0.42);
+  }
+
+  // ---- names the newer interface calls, mapped onto the original voices ----
+  discover() { this.chime(7); }
+  open() { this.click(); }
+  close() { this.click(); }
+  toggle() { return !this.toggleMute(); }
 }
