@@ -146,7 +146,7 @@ export function buildBuilding() {
   }
 
   // hanging sign + a pair of planters outside the front door
-  const sign = shopSign('ANALOGUE INTELLIGENCE', 'Software Engineering and AI for Creative & Physical Systems');
+  const sign = shopSign('ANALOGUE INTELLIGENCE', 'Software, AI, and Creativity');
   sign.position.set(0, 7.4, 26.9);
   group.add(sign);
   for (const sx of [-1, 1]) {

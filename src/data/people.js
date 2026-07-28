@@ -158,7 +158,7 @@ export const MEMBERS = [
   {
     id: 'member_banno',
     name: 'Banno',
-    role: 'Junior Lecturer · Artificial Intelligence, Faculty of Science, VU Amsterdam',
+    role: 'Junior Lecturer · Artificial Intelligence, VU Amsterdam',
     accent: '#5e8a5a',
     room: 'hall',
     appearance: {
