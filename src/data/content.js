@@ -237,4 +237,4 @@ export const CONTENT = {
 };
 
 export const TITLE = 'Analogue Intelligence';
-export const SUBTITLE = 'The other AI.';
+export const SUBTITLE = 'Software Engineering and AI for Creative & Physical Systems';
