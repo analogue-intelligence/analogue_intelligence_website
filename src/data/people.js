@@ -124,7 +124,7 @@ export const MEMBERS = [
   {
     id: 'member_mauricio',
     name: 'Mauricio',
-    role: 'Assistant Professor · Vrije Universiteit Amsterdam',
+    role: 'Assistant Professor · VU Amsterdam',
     accent: '#c97a3a',
     room: 'studio',
     appearance: {
