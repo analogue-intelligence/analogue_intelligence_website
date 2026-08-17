@@ -48,12 +48,17 @@ export class TouchControls {
         <span class="tbtn-verb">look</span>
         <span class="tbtn-target">nothing nearby</span>
       </button>
-      <div class="tbtn-row">
-        <button class="tbtn tbtn-small" data-key="m" aria-label="Map">▤</button>
-        <button class="tbtn tbtn-small" data-key="c" aria-label="Change character">☺</button>
-        <button class="tbtn tbtn-small" data-key="q" aria-label="Graphics quality">◐</button>
-        <button class="tbtn tbtn-small" data-key="n" aria-label="Sound">♪</button>
-        <button class="tbtn tbtn-small" data-key="f" aria-label="Performance">◱</button>
+      <div class="tbtn-menu">
+        <button class="tbtn tbtn-toggle" aria-label="Controls" aria-expanded="false">
+          <span class="tbtn-toggle-glyph">≡</span>
+        </button>
+        <div class="tbtn-tray">
+          <button class="tbtn tbtn-small" data-key="m"><i>▤</i><em>Map</em></button>
+          <button class="tbtn tbtn-small" data-key="c"><i>☺</i><em>Character</em></button>
+          <button class="tbtn tbtn-small" data-key="q"><i>◐</i><em>Quality</em></button>
+          <button class="tbtn tbtn-small" data-key="n"><i>♪</i><em>Sound</em></button>
+          <button class="tbtn tbtn-small" data-key="f"><i>◱</i><em>Stats</em></button>
+        </div>
       </div>
     `;
     root.appendChild(this.el);
@@ -65,8 +70,21 @@ export class TouchControls {
     this.targetEl = this.el.querySelector('.tbtn-target');
 
     this.actionBtn.addEventListener('click', (e) => { e.preventDefault(); this.onAction(); });
+
+    // Five permanent buttons down the edge of a phone is most of the screen
+    // edge spoken for before anything has happened. They live behind one now:
+    // the tray opens on demand, closes as soon as something is chosen, and
+    // closes itself if it is left open and ignored.
+    this.menuEl = this.el.querySelector('.tbtn-menu');
+    this.toggleEl = this.el.querySelector('.tbtn-toggle');
+    this.toggleEl.addEventListener('click', (e) => { e.preventDefault(); this.toggleMenu(); });
+
     for (const b of this.el.querySelectorAll('[data-key]')) {
-      b.addEventListener('click', (e) => { e.preventDefault(); this.onKey(b.dataset.key); });
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.onKey(b.dataset.key);
+        this.toggleMenu(false);
+      });
     }
 
     this._bindStick();
@@ -152,6 +170,16 @@ export class TouchControls {
     const drop = (e) => { points.delete(e.pointerId); if (points.size < 2) startDist = 0; };
     canvas.addEventListener('pointerup', drop);
     canvas.addEventListener('pointercancel', drop);
+  }
+
+  /** Open or close the tray of secondary controls. */
+  toggleMenu(force) {
+    if (!this.menuEl) return;
+    const open = force ?? !this.menuEl.classList.contains('open');
+    this.menuEl.classList.toggle('open', open);
+    this.toggleEl.setAttribute('aria-expanded', String(open));
+    clearTimeout(this._menuTimer);
+    if (open) this._menuTimer = setTimeout(() => this.toggleMenu(false), 6000);
   }
 
   /**
