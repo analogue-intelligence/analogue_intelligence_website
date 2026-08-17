@@ -351,10 +351,5 @@ export const CONTENT = {
   },
 };
 
-<<<<<<< Updated upstream
-export const TITLE = 'Analogue Intelligence';
-export const SUBTITLE = 'Software Engineering and AI for Creative & Physical Systems';
-=======
 export const TITLE = 'Analogue Intelligence Lab';
 export const SUBTITLE = 'Software, AI, and Creativity';
->>>>>>> Stashed changes

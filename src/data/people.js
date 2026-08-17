@@ -58,11 +58,7 @@ export const CURATOR = {
       q: 'Can I work or study with you?',
       answer: [
         'Gladly. We supervise theses and projects, and collaborate with researchers, industry and artists.',
-<<<<<<< Updated upstream
-        'The notice board by the window has the details, or if you have an idea, please write to us directly.',
-=======
         'The Partners Room, east of the hall, makes the whole case in order \u2014 what we claim, why now, what we have built, and one desk with an address on it.',
->>>>>>> Stashed changes
       ],
       action: { label: 'Get in touch →', href: 'mailto:m.verano.merino@vu.nl' },
     },
@@ -155,11 +151,7 @@ export const MEMBERS = [
   {
     id: 'member_banno',
     name: 'Banno',
-<<<<<<< Updated upstream
-    role: 'Junior Lecturer · Artificial Intelligence, VU Amsterdam',
-=======
     role: 'Lecturer · Artificial Intelligence, VU Amsterdam',
->>>>>>> Stashed changes
     accent: '#5e8a5a',
     room: 'hall',
     appearance: {

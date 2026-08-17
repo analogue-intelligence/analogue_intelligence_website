@@ -176,17 +176,12 @@ export function buildBuilding() {
   }
 
   // hanging sign + a pair of planters outside the front door
-<<<<<<< Updated upstream
-  const sign = shopSign('ANALOGUE INTELLIGENCE', 'Software, AI, and Creativity');
-  sign.position.set(0, 7.4, 26.9);
-=======
   // Outside the front door, which moved to z = 30 when the lobby was deepened —
   // the sign and its planters were left standing in the middle of the lobby.
   // y = 6.55 sits the board clear above the 5.6 doorway with the bar under the
   // 8-unit wall top.
   const sign = shopSign('ANALOGUE INTELLIGENCE', 'Software, AI, and Creativity');
   sign.position.set(0, 6.55, 30.9);
->>>>>>> Stashed changes
   group.add(sign);
   for (const sx of [-1, 1]) {
     const p = plant(1.25);
