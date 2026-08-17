@@ -134,19 +134,33 @@ export class Door {
 }
 
 /** The hanging shop sign over the entrance. */
+/**
+ * The sign over the front door.
+ *
+ * Sized to the header it has to live in — the doorway is 5.6 units tall in an
+ * 8-unit wall, so everything here, chains included, has to fit in 2.4 units.
+ * The board is wider and shallower than it was, and textPlate now shrinks the
+ * title to fit rather than running it off the edge of its own canvas.
+ */
 export function shopSign(text, sub) {
   const g = new THREE.Group();
   const t = textPlate([text, sub], {
-    w: 1024, h: 300, bg: '#2a2018', border: '#b08d46', borderWidth: 8,
-    color: '#e7d7b0', size: 96, font: '"Syne", Georgia, serif',
+    w: 1400, h: 340, bg: '#2a2018', border: '#b08d46', borderWidth: 9,
+    color: '#e7d7b0', size: 104, pad: 90, font: '"Syne", Georgia, serif',
   });
-  const board = box(5.2, 1.5, 0.14, new THREE.MeshStandardMaterial({ map: t, roughness: 0.85 }));
+  // 6.0 wide is the largest that still fits: the header between the 5.6-unit
+  // doorway and the 8-unit wall top is only 2.4 units, and the board plus its
+  // bar and chains has to live inside that.
+  const W = 6.0, H = W * (340 / 1400);          // keep the board's aspect true
+  const board = box(W, H, 0.16, new THREE.MeshStandardMaterial({ map: t, roughness: 0.85 }));
   g.add(board);
-  const bar = box(5.8, 0.12, 0.12, M.metal('#3f3b36', 0.55));
-  bar.position.y = 0.92; g.add(bar);
+
+  const bar = box(W + 0.7, 0.12, 0.12, M.metal('#3f3b36', 0.55));
+  bar.position.y = H / 2 + 0.52; g.add(bar);
   for (const s of [-1, 1]) {
-    const chain = box(0.06, 0.85, 0.06, M.metal('#3f3b36', 0.55));
-    chain.position.set(s * 2.1, 0.46, 0); g.add(chain);
+    const chain = box(0.06, 0.52, 0.06, M.metal('#3f3b36', 0.55));
+    chain.position.set(s * (W / 2 - 0.5), H / 2 + 0.26, 0); g.add(chain);
   }
+  g.userData.height = H + 1.04;                 // board plus its hanging gear
   return g;
 }

@@ -18,7 +18,8 @@ import math
 import numpy as np
 from PIL import Image
 
-SIZE = 512
+SIZE = 384        # 384 rather than 512: these tile 6-30 times, so the extra
+                  # resolution was never visible and cost half the download
 OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                    "assets", "textures")
 rng = np.random.default_rng(20260724)
@@ -144,8 +145,101 @@ def hexf(h):
     return np.array([int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)])
 
 
-def save(name, rgb):
+
+# ---------------------------------------------------------------------------
+# the painterly pass
+# ---------------------------------------------------------------------------
+# Every texture goes through this on the way to disk. It is what separates a
+# procedurally generated surface from one that looks painted: pigment pools at
+# the edges of forms, strokes are laid in two crossing directions with the
+# colour varying from stroke to stroke, and a canvas weave shows through the
+# thin parts.
+#
+# The strokes sample the colour that is already at that point and jitter it,
+# rather than working from a fixed palette, so this stays correct for every
+# material without being told what it is looking at.
+
+PAINT_HATCH_A = 0.62          # radians; the two hatching directions
+PAINT_HATCH_B = 0.62 + math.pi / 2
+
+
+def canvas_weave(size, scale=2.0):
+    """A woven ground: two crossing sine ridges with the threads offset."""
+    y, x = np.mgrid[0:size, 0:size].astype(np.float64)
+    warp_x = np.sin(x * math.pi / scale) ** 2
+    warp_y = np.sin(y * math.pi / scale) ** 2
+    thread = np.where(((x // scale).astype(int) + (y // scale).astype(int)) % 2 == 0,
+                      warp_x, warp_y)
+    return thread
+
+
+def painterly(rgb, strength=1.0, hatch=7000, weave=0.05):
+    """Turn a flat procedural field into something that reads as painted."""
+    size = rgb.shape[0]
+
+    # 1. pigment pooling — paint gathers and darkens where a form has an edge
+    lum = rgb.mean(axis=2)
+    gx = np.roll(lum, -1, 1) - np.roll(lum, 1, 1)
+    gy = np.roll(lum, -1, 0) - np.roll(lum, 1, 0)
+    edge = norm01(np.sqrt(gx * gx + gy * gy))
+    rgb *= (1.0 - 0.22 * strength * edge[..., None])
+
+    # 2. a broad, low-frequency wash so large areas are never one flat tone
+    wash = norm01(fbm(size, 2, 3))[..., None]
+    tint = np.asarray([1.05, 1.0, 0.93])
+    rgb = rgb * (1.0 - 0.16 * strength) + rgb * tint * wash * (0.16 * strength) * 2.0
+
+    # 3. two directions of hatching, colour sampled from the surface itself
+    n = int(hatch * strength)
+    for i in range(n):
+        x = rng.random() * size
+        y = rng.random() * size
+        c = rgb[int(y) % size, int(x) % size].copy()
+        # vary value and warmth stroke to stroke, the way a loaded brush does
+        # A loaded brush never puts down the colour it picked up: value swings
+        # hard stroke to stroke and the warm/cool axis drifts with it. This is
+        # most of the difference between "procedural noise" and "painted".
+        warm = (rng.random() - 0.5) * 0.16
+        c = np.clip(c * (0.68 + rng.random() * 0.70)
+                    + np.asarray([warm, warm * 0.35, -warm]), 0, 1)
+        ang = (PAINT_HATCH_A if i % 2 else PAINT_HATCH_B) + (rng.random() - 0.5) * 0.6
+        splat(rgb, x, y, ang,
+              8.0 + rng.random() * 20.0,
+              0.9 + rng.random() * 1.6,
+              c, 0.10 + rng.random() * 0.14)
+
+    # 4. the weave of the ground showing through
+    if weave > 0:
+        w = canvas_weave(size, 2.0)
+        rgb *= (1.0 - weave * strength) + weave * strength * (0.55 + 0.9 * w[..., None])
+
+    # 5. chalky, limited colour: posterise the value a little and pull the
+    # chroma up, which is the other half of the illustrated look
+    lum2 = rgb.mean(axis=2, keepdims=True)
+    post = np.round(lum2 * 9.0) / 9.0
+    rgb = rgb + (post - lum2) * 0.30 * strength
+    rgb = np.clip(lum2 + (rgb - lum2) * (1.0 + 0.20 * strength), 0, 1)
+
+    # 6. re-stated edges, the way an illustrator goes back over a form
+    for _ in range(int(150 * strength)):
+        x = rng.random() * size
+        y = rng.random() * size
+        c = rgb[int(y) % size, int(x) % size] * 0.48
+        splat(rgb, x, y, PAINT_HATCH_A + (rng.random() - 0.5) * 0.45,
+              10.0 + rng.random() * 22.0, 0.6 + rng.random() * 0.8, c, 0.20)
+
+    return np.clip(rgb, 0, 1)
+
+
+def save(name, rgb, paint_strength=0.5):
+    if paint_strength > 0:
+        rgb = painterly(np.array(rgb, dtype=np.float64), paint_strength)
     img = Image.fromarray((np.clip(rgb, 0, 1) * 255).astype(np.uint8))
+    # Painterly hatching is high-frequency noise, which PNG cannot compress —
+    # the textures tripled in size when the brush pass went in. An adaptive
+    # 160-colour palette gives back two thirds of that for a mean error under
+    # 1/255, which is invisible on a surface tiled six to thirty times.
+    img = img.convert("P", palette=Image.ADAPTIVE, colors=160, dither=Image.NONE)
     img.save(os.path.join(OUT, name + ".png"), optimize=True)
     print(f"  {name}.png")
 
@@ -158,6 +252,7 @@ def save_normal(name, height, strength=2.2, half=True):
     nz = np.ones_like(h)
     ln = np.sqrt(dx ** 2 + dy ** 2 + nz ** 2)
     rgb = np.stack([(-dx / ln) * 0.5 + 0.5, (-dy / ln) * 0.5 + 0.5, (nz / ln) * 0.5 + 0.5], -1)
+    # never painterly: a normal map is data, not a picture
     img = Image.fromarray((np.clip(rgb, 0, 1) * 255).astype(np.uint8))
     if half:
         img = img.resize((rgb.shape[0] // 2, rgb.shape[1] // 2), Image.LANCZOS)
@@ -433,6 +528,49 @@ def t_grass(name, size=SIZE):
     save_normal(name + "_n", f, 1.1)
 
 
+def t_brushwork(name, size=SIZE):
+    """A greyscale brushwork map, multiplied over every flat-coloured surface.
+
+    This is the texture the building was missing. Floors and walls were painted
+    but every prop, chair and character used a solid colour with no map at all,
+    which is precisely why they read as moulded plastic next to a hand-painted
+    floor. In an illustrated look *everything* carries paint.
+
+    Kept close to white — mean around 0.93 — so it modulates a colour rather
+    than darkening it, and centred on mid-grey strokes so it reads as brushwork
+    at any scale the per-face UVs happen to give it."""
+    base = np.full((size, size, 3), 0.965, dtype=np.float64)
+
+    # a slow tonal drift, so no flat surface is ever one value
+    wash = norm01(fbm(size, 3, 3))
+    base *= (0.955 + 0.055 * wash[..., None])
+
+    # the strokes themselves, in two crossing directions, light and dark
+    for i in range(5200):
+        light = rng.random() < 0.45
+        tone = 1.0 + (0.03 if light else -0.06) * (0.4 + rng.random())
+        ang = (0.55 if i % 2 else 0.55 + math.pi / 2) + (rng.random() - 0.5) * 0.55
+        splat(base, rng.random() * size, rng.random() * size, ang,
+              9.0 + rng.random() * 26.0, 0.9 + rng.random() * 2.0,
+              np.array([tone, tone, tone]) * 0.965, 0.06 + rng.random() * 0.09)
+
+    # canvas tooth underneath, the same weave the painterly pass uses
+    w = canvas_weave(size, 2.0)
+    base *= 0.982 + 0.024 * w[..., None]
+
+    # a few re-stated darker accents so edges of forms feel drawn
+    for _ in range(180):
+        splat(base, rng.random() * size, rng.random() * size,
+              0.55 + (rng.random() - 0.5) * 0.5,
+              14.0 + rng.random() * 30.0, 0.7 + rng.random() * 0.9,
+              np.array([0.80, 0.79, 0.78]), 0.14)
+
+    base = np.clip(base, 0.0, 1.0)
+    print("    brushwork mean %.3f  min %.3f" % (base.mean(), base.min()))
+    save(name, base, 0.0)              # already painterly; no second pass
+    save_normal(name + "_n", base.mean(axis=2), 0.7)
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
     print("baking →", OUT)
@@ -443,6 +581,7 @@ def main():
     t_tile("tile")
     t_stone("stone")
     t_grass("grass")
+    t_brushwork("brushwork")
     t_fabric("fabric", hexf("#8a8577"))
     t_rug("rug")
     t_metal("metal")

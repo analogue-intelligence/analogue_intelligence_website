@@ -28,10 +28,17 @@ export class ProximityManager {
       const el = document.createElement('button');
       el.className = 'obj-label';
       el.style.setProperty('--accent', it.color);
+      // Every live chip carries a hint, not only the nearest one. Clicking a
+      // chip has always worked, but only the closest object showed an `E`, so
+      // the others looked like captions rather than buttons — and when three
+      // exhibits are in range at once, guessing which one `E` will pick is a
+      // genuinely bad experience. Now: the nearest says `E`, the rest say
+      // `click`, and both do the same thing.
       el.innerHTML =
         `<span class="obj-cat">${it.categoryLabel}</span>` +
         `<span class="obj-tag">${it.tag}</span>` +
-        `<span class="obj-key">E</span>`;
+        `<span class="obj-key"><i class="k-e">E</i><i class="k-c">click</i></span>`;
+      el.title = `Open ${it.title}`;
       el.addEventListener('click', (e) => {
         e.stopPropagation();
         this.onActivate(it);

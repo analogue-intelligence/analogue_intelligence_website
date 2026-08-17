@@ -13,7 +13,9 @@ export class Player {
   constructor(colliders, nav, appearance) {
     this.colliders = colliders;
     this.nav = nav;
-    this.speed = 7.6;
+    // Brisk. The building is about a hundred units end to end, and at 7.6 the
+    // walk between the two far rooms was long enough to be a chore.
+    this.speed = 9.4;
     this.radius = 0.62;
     this._targetY = 0;
     this._stepAccum = 0;

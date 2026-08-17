@@ -26,6 +26,9 @@ export const CATEGORIES = {
 // request. To put either back: restore its entry here and add a row to EXHIBITS
 // in world/rooms/hall.js — the plinth, spotlight and lamp are generated from
 // that row, so nothing else needs touching.
+// lb_espresso was removed: its floating label overlapped the Curator. To bring
+// it back, restore the entry and the ctx.interact() call in rooms/lobby.js, but
+// move the machine along the bar first.
 export const CONTENT = {
   // ======================================================= HALL OF FAME ====
   ex_zephyr: {
@@ -61,7 +64,7 @@ export const CONTENT = {
     subtitle: 'Poems, embedded and drawn',
     body: [
       'A generative system that reads a poem, maps its word embeddings through a CPPN evolved with NEAT, and renders the result as vector artwork scored on analytic aesthetic measures.',
-      'Colour comes from CLIP, which needed a mean-centring fix before it would stop collapsing every poem onto the same three hues. Fitness combines colourfulness, balance and symmetry terms drawn from the image-aesthetics literature.',
+      'Colour comes from CLIP. Fitness combines colourfulness, balance and symmetry terms drawn from the image-aesthetics literature.',
       'Somewhere between a research artefact and a printmaking studio: the same pipeline produces the paper and the plots in it.',
     ],
     action: { label: 'Read the code →', href: `${ORG}/daedalus` },
@@ -77,6 +80,7 @@ export const CONTENT = {
     body: [
       'A research group at the intersection of software engineering and creative computing, studying how intelligent systems are built, embodied, and understood.',
       'We treat models, hardware, engineering and art as one practice rather than four departments. Less interested in intelligence measured on a leaderboard than in intelligence that holds up in a room with furniture in it.',
+      'The nested squares are for Josef Albers, who spent decades proving that a colour is never one thing on its own.',
     ],
   },
 
@@ -208,14 +212,6 @@ export const CONTENT = {
   },
 
   // ============================================================ LOBBY ======
-  lb_espresso: {
-    category: 'vision',
-    title: 'The machine',
-    tag: 'Hissing, slightly overdue a service',
-    body: [
-      'Every project in the Hall of Fame was argued into existence within two metres of this thing.',
-    ],
-  },
   lb_board: {
     category: 'contact',
     title: 'The lab is open',
@@ -234,7 +230,131 @@ export const CONTENT = {
       'The oldest signal-processing device in the building, and still the most legible: a groove, a needle, a cone, and no software anywhere in the chain.',
     ],
   },
+
+  // ------------------------------------------------------- partners room ----
+  // Five panels, not nine. The room is a pitch: it should read as confident and
+  // specific, lead with what a partner gains, and never spend a paragraph on
+  // what we refuse. Independence is stated once, as a reason to trust the
+  // findings, rather than as a list of things not for sale.
+  pt_thesis: {
+    category: 'contact', title: 'What we do', tag: 'The work',
+    subtitle: 'Intelligence that holds up outside the benchmark',
+    body: [
+      'Analogue Intelligence builds and tests intelligent systems in the place they actually have to work: a physical room, with latency in it, and contact, and light that is never quite what the model assumed.',
+      'We do this by refusing the usual separation of software, models, hardware and design into different teams. The failures worth understanding happen at the seams between them, and they are only visible to a group that works across all four.',
+      'The timing is favourable. Raw capability is no longer the limiting factor in this field \u2014 deployment and honest evaluation are, and the cost of running real physical experiments has fallen far enough that a focused group can answer questions that used to need an industrial lab.',
+    ],
+  },
+  pt_evidence: {
+    category: 'contact', title: 'Track record', tag: 'Evidence',
+    subtitle: 'Delivered work, and the building it was made in',
+    body: [
+      'Three projects stand on plinths in the Hall of Fame, and the hardware they ran on is in the room next door: a tri-mode UAV navigation framework prepared for ICRA, a geometric pass-ranking system evaluated on international match data, and a generative design system submitted to the evolutionary computation community.',
+      'Alongside them: supervised theses, taught courses, and a public workshop programme now in its twenty-fifth year. The group delivers on schedule, which is the least glamorous and most relevant thing a partner can know about it.',
+      'We sit within the Vrije Universiteit Amsterdam, Faculty of Science \u2014 so partnerships come with research infrastructure, ethics review, an excellent supply of students, and an institution that will still be here in ten years.',
+    ],
+    action: { label: 'See the projects \u2192', href: '#hall' },
+  },
+  pt_people: {
+    category: 'people', title: 'Who you work with', tag: 'The group',
+    subtitle: 'Senior people, directly',
+    body: [
+      'This is a small group inside a large university, and that is the offer. The person who answers your first email is the person who will run the work \u2014 no account management, no queue between you and someone who understands the problem.',
+      'It also means we take on a limited number of partnerships and give each of them real attention. We would rather say that at the start than have you discover it halfway through.',
+      'Walk around and talk to whoever is on the floor. They will describe what they are working on far better than any page of biographies.',
+    ],
+  },
+  pt_directions: {
+    category: 'contact', title: 'What support unlocks', tag: 'Roadmap',
+    subtitle: 'Three directions, ready to run',
+    body: [
+      'Predictive control for dynamic environments \u2014 navigation that acts on where a scene is heading rather than where it is. Proven in simulation and ready for sustained hardware trials.',
+      'Evaluation methodology \u2014 separating genuine modelling improvements from changes in how a test set was drawn. The groundwork is done; it needs funded researchers to carry it.',
+      'Creative computing as a research instrument \u2014 treating generative systems as experiments that produce evidence, not just outputs. Results in hand, ready to be written up and published.',
+      'Each of these is a defined piece of work with a clear next step, so support translates into something specific and visible rather than into general capacity.',
+    ],
+  },
+  pt_partnership: {
+    category: 'contact', title: 'Ways to work together', tag: 'Partnership',
+    subtitle: 'Five routes in, one conversation',
+    body: [
+      'Bring us a problem from your own work that deserves proper investigation. Fund one of the directions above. Share a student through co-supervision or a placement. Commission an independent evaluation of a system you already have. Or simply visit and see what is here.',
+      'Every route follows the same shape: a conversation, then a scoped pilot small enough that either side can step away, then a longer programme if the pilot earns one. Partners get early sight of results, named acknowledgement, and a genuine voice in which questions get asked.',
+      'One principle underpins all of it: we publish what we find, including the results where our own methods come off worse. That independence is precisely what makes our findings worth acting on \u2014 and it is why an evaluation from this group carries weight elsewhere.',
+    ],
+  },
+  pt_contact: {
+    category: 'contact', title: 'Start a conversation', tag: 'Get in touch',
+    subtitle: 'One email, no forms',
+    body: [
+      'Tell us who you are and what interests you, in as few sentences as you like. We will reply with an honest view of whether there is something here for you and what a sensible first step would be.',
+      'If you are still deciding, come and visit instead. An afternoon in the building tends to settle the question faster than any amount of correspondence.',
+    ],
+    action: { label: 'hello@analogue-intelligence.org \u2192', href: EMAIL },
+  },
+
+
+  // ---------------------------------------------------------- the classroom --
+  cl_open: {
+    category: 'people', title: 'The open lecture series', tag: 'AI literacy',
+    subtitle: 'One talk every month or two, for anyone at all',
+    body: [
+      'Almost everybody now uses systems they have never been told anything about \u2014 and that includes students of the subject. A full course is the obvious answer and the wrong one: too formal to attend, and it reaches exactly the people who were already going to learn.',
+      'So instead we organize a talk, every month or once every three weeks, on one thing. No registration, no prerequisites, no assessment. The first is about what a language model is actually doing when it writes \u2014 tokenisation, prediction, temperature, attention, alignment \u2014 in an hour, without equations on the way in.',
+      'The intention is to run it outside the university as well as inside: for people who are not students, for children, for older people who have been handed these tools with no explanation at all.',
+    ],
+    action: { label: 'Ask to be told when \u2192', href: EMAIL },
+  },
+  cl_topics: {
+    category: 'ai', title: 'What is on the board', tag: 'This month',
+    subtitle: 'Tokenisation, prediction, and the temperature dial',
+    body: [
+      'A sentence cut into tokens, four candidates for the next one with their probabilities, and an arrow pointing at the dial that flattens the distribution. That is most of what a language model does when it writes, and it fits on a whiteboard.',
+      'The format is deliberately this: one mechanism per session, drawn, with enough time for the room to argue about it. Everybody leaves able to say what it is doing.',
+    ],
+  },
+  cl_attend: {
+    category: 'contact', title: 'Coming to one', tag: 'Practical',
+    subtitle: 'Turn up',
+    body: [
+      'Sessions are announced on the board here and by email to anyone who has asked to be told. There is no list to join and nothing to pay.',
+      'Planned next: reinforcement learning \u2014 how a system learns from consequences rather than examples. Version control, and why it is the first thing anyone should learn. What continuous integration is actually for. And what happens to a model after it is trained, which is where most of the real work turns out to be.',
+      'If you would like one of these run somewhere else \u2014 a school, a library, a community centre \u2014 that is exactly the point of it, so please ask.',
+    ],
+    action: { label: 'Get in touch \u2192', href: EMAIL },
+  },
+  cl_python: {
+    category: 'software', title: 'Introduction to Python', tag: 'Taught course',
+    subtitle: 'The first programming most of our students do',
+    body: [
+      'A first course in programming, taught in Python: the ordinary business of variables, control flow, data structures and functions, object oriented programming, and the much less ordinary business of learning to read an error message without panicking.',
+      'It is a normal university course with enrolment, deadlines and marks \u2014 the formal half of what happens in this room. Most of the people who end up with a project in the Hall of Fame started here.',
+    ],
+  },
+  cl_applied: {
+    category: 'software', title: 'Applied Programming', tag: 'Taught course',
+    subtitle: 'Where the first course stops being enough',
+    body: [
+      'What to do once you can write code and the problem is bigger than one file: structuring a project, testing it, versioning it, and handing it to someone who was not there when you wrote it.',
+      'This is the point at which programming becomes engineering, and the point at which most self-taught programmers discover what they skipped.',
+    ],
+  },
+
+  welcome: {
+    category: 'vision', title: 'Analogue Intelligence Lab', tag: 'Welcome',
+    subtitle: 'You have arrived',
+    body: [
+      'Hello, and well done for walking all the way up the path.',
+      'This is the Analogue Intelligence lab. Inside there is a hall of the things we have built, a workshop where robotics and studio practice share a floor, a classroom anyone may sit in, a room for people who want to support the work, and a library upstairs.',
+      'Nothing in here is behind glass. Walk up to anything that catches your eye and read it exactly the way you just read this sign \u2014 that is the whole interface, and you have now learnt all of it.',
+    ],
+  },
 };
 
+<<<<<<< Updated upstream
 export const TITLE = 'Analogue Intelligence';
 export const SUBTITLE = 'Software Engineering and AI for Creative & Physical Systems';
+=======
+export const TITLE = 'Analogue Intelligence Lab';
+export const SUBTITLE = 'Software, AI, and Creativity';
+>>>>>>> Stashed changes

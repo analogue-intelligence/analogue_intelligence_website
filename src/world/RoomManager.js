@@ -17,7 +17,11 @@ import { ROOMS } from './floorplan.js';
 // -----------------------------------------------------------------------------
 
 const SHROUD_COLOR = '#120d08';   // warm dark, not a blue-black void
-const FADE = 0.9;              // seconds for a room to come up
+// Seconds for a room to come up. At 0.9 the fade took about a second and a
+// half to finish, and for that whole time you were standing inside a room that
+// was still black — which reads as the screen going dark rather than as a room
+// lighting up.
+const FADE = 0.42;
 
 export class RoomManager {
   constructor(scene, player, onEnter) {

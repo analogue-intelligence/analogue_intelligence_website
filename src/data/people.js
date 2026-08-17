@@ -1,13 +1,6 @@
 // -----------------------------------------------------------------------------
 // people.js — everyone in the building who can be talked to.
-//
-// THESE ARE REAL PEOPLE. TWO OF THEM HAVE NOT WRITTEN THEIR LINES YET.
-//
-// Mauricio's and Banno's dialogue is deliberately Lorem Ipsum. Their names,
-// roles and links are real and correct; the words are for them to supply. A
-// visitor will reasonably assume they are being addressed by the person on the
-// label, so nobody should be given invented opinions — placeholder Latin is the
-// honest state until each of them writes their own.
+// Mauricio's and Banno's dialogue is deliberately Lorem Ipsum. 
 //
 // To fill one in: replace the strings in `greeting` and each `answer`, and
 // change the `q` prompts to the questions they'd actually want asked. Keep the
@@ -24,19 +17,19 @@ export const CURATOR = {
   name: 'The Curator',
   role: 'Front of house',
   accent: '#c9a24a',
-  position: [-7.5, 0, 16.1],
+  position: [-10.6, 0, 16.2],
   facing: 0,
   // Deliberately outside every palette the creator offers: a plum coat, an
   // apron in lab green, and silver hair. Whatever a visitor builds for
   // themselves, the person behind the counter is unmistakably not one of them.
   appearance: {
-    name: 'The Curator', skin: '#b87642', hairStyle: 'long', hairColor: '#efe9dc',
+    name: 'The Curator', skin: '#b87642', hairStyle: 'long', hairColor: '#f2ede2',
     coat: '#7d3b52', trousers: '#3b2f3a', accessory: 'apron', build: 'sturdy', height: 1.06,
   },
   greeting: [
     'Welcome to Analogue Intelligence.',
     'Walk with <b>W A S D</b> or the <b>arrow keys</b>, or click anywhere on the floor. Objects light up when you are close — press <b>E</b> or click to read one.',
-    'Through the double doors is the Hall of Fame. The lab is off either side of it, and the library is up the stairs at the back. Take your time.',
+    'The Classroom is the door on your left \u2014 that is where the open lectures happen, and anyone can come to those. Through the double doors ahead is the Hall of Fame. The Research Lab is the long room to the west \u2014 robotics and studio share it, which people always ask about. The Partners Room is east, and the library is up the stairs at the back.',
   ],
   questions: [
     {
@@ -50,7 +43,7 @@ export const CURATOR = {
     {
       q: 'What is in the building?',
       answer: [
-        'Five rooms. This lobby; the Hall of Fame, where six of our projects are on plinths; the Robotics Lab to the west; the Creative Studio to the east; and the library upstairs, where the four research pillars each have a shelf.',
+        'Six rooms. This lobby; the Classroom, just there on the left; the Hall of Fame, where our projects stand on plinths; the Research Lab to the west; the Partners Room to the east; and the library upstairs, where the four research pillars each have a shelf.',
         'Every room stays dark until you walk into it. That is deliberate — the building should reward wandering.',
       ],
     },
@@ -65,7 +58,11 @@ export const CURATOR = {
       q: 'Can I work or study with you?',
       answer: [
         'Gladly. We supervise theses and projects, and collaborate with researchers, industry and artists.',
+<<<<<<< Updated upstream
         'The notice board by the window has the details, or if you have an idea, please write to us directly.',
+=======
+        'The Partners Room, east of the hall, makes the whole case in order \u2014 what we claim, why now, what we have built, and one desk with an address on it.',
+>>>>>>> Stashed changes
       ],
       action: { label: 'Get in touch →', href: 'mailto:m.verano.merino@vu.nl' },
     },
@@ -87,7 +84,7 @@ export const MEMBERS = [
     name: 'Ioana-Teodora',
     role: 'Reinforcement learning · embodied navigation',
     accent: '#4f7d93',
-    room: 'robotics',
+    room: 'lab',
     appearance: {
       skin: '#d99b6c', hairStyle: 'curls', hairColor: '#1c1712',
       coat: '#4f6472', trousers: '#2c333d', accessory: 'glasses', build: 'regular', height: 1.0,
@@ -115,7 +112,8 @@ export const MEMBERS = [
       {
         q: 'How did you end up here?',
         answer: [
-          'Through the creative side, oddly. I was making generative work before I was training policies and always had a passion for robotics, so when I found this group it was a perfect fit.',
+          'Through the creative side, oddly. I was making generative work before I was training policies, and the two turned out to be the same question asked with different tooling.',
+          'Which is more or less the argument this whole group is built on, so I fitted.',
         ],
       },
     ],
@@ -126,14 +124,13 @@ export const MEMBERS = [
     name: 'Mauricio',
     role: 'Assistant Professor · VU Amsterdam',
     accent: '#c97a3a',
-    room: 'studio',
+    room: 'lab',
     appearance: {
       skin: '#b87642', hairStyle: 'crop', hairColor: '#3a2a1c',
       coat: '#c9822f', trousers: '#4a3a2a', accessory: 'none', build: 'regular', height: 1.04,
     },
-    patrol: [[22, 0, 3], [30, 0, 3], [31, 0, -4], [23, 0, -5]],
-    // ⚠ PLACEHOLDER — for Mauricio to write. Research areas: software evolution
-    // & maintenance, creative computing, software language engineering, sports.
+    patrol: [[-46, 0, 3], [-54, 0, 3], [-55, 0, -4], [-47, 0, -5]],
+    // ⚠ PLACEHOLDER — for Mauricio to write.
     greeting: [
       'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
       'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
@@ -158,7 +155,11 @@ export const MEMBERS = [
   {
     id: 'member_banno',
     name: 'Banno',
+<<<<<<< Updated upstream
     role: 'Junior Lecturer · Artificial Intelligence, VU Amsterdam',
+=======
+    role: 'Lecturer · Artificial Intelligence, VU Amsterdam',
+>>>>>>> Stashed changes
     accent: '#5e8a5a',
     room: 'hall',
     appearance: {

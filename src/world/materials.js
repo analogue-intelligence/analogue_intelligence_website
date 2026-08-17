@@ -84,6 +84,12 @@ export function surface(o = {}) {
     opacity: o.opacity ?? 1,
     side: o.side ?? THREE.FrontSide,
     flatShading: o.flat ?? false,
+    // image-based lighting: without this every surface is lit only by the two
+    // directionals and reads flat, whatever its roughness says
+    // A touch more environment and slightly tighter roughness gives painted
+    // surfaces the soft clay sheen that clean low-poly work relies on, without
+    // going anywhere near photoreal.
+    envMapIntensity: o.envMapIntensity ?? 0.45,
   });
   if (maps.normalMap) m.normalScale.set(o.normalScale ?? 0.7, o.normalScale ?? 0.7);
   cache.set(key, m);
@@ -91,10 +97,32 @@ export function surface(o = {}) {
 }
 
 /** Untextured flat colour — for painted props, plastics, small parts. */
+/**
+ * A painted colour — with paint on it.
+ *
+ * This used to be a bare `color` with no map, and it is used about seventy
+ * times: every chair, crate, robot part, plaque and figure in the building.
+ * That is why the props read as moulded plastic sitting in a hand-painted room
+ * — the floors and walls had brushwork and nothing else did.
+ *
+ * The `brushwork` map is a near-white greyscale (mean 0.91) of crossed strokes
+ * and canvas tooth, so it modulates the colour rather than tinting it. One
+ * shared texture, no extra draw calls, and every flat surface in the building
+ * gains visible paint at once. `bare: true` opts out for the few things that
+ * should stay clean — screens, glass, emissive signage.
+ */
 export function paint(color, o = {}) {
-  return surface({ color, roughness: o.roughness ?? 0.72, metalness: o.metalness ?? 0,
+  if (o.bare) {
+    return surface({ color, roughness: o.roughness ?? 0.62, metalness: o.metalness ?? 0,
+      emissive: o.emissive, emissiveIntensity: o.emissiveIntensity, flat: o.flat ?? false,
+      opacity: o.opacity, side: o.side });
+  }
+  return surface({
+    color, map: 'brushwork', repeat: o.repeat ?? [1, 1],
+    roughness: o.roughness ?? 0.62, metalness: o.metalness ?? 0,
     emissive: o.emissive, emissiveIntensity: o.emissiveIntensity, flat: o.flat ?? false,
-    opacity: o.opacity, side: o.side });
+    opacity: o.opacity, side: o.side, normalScale: 0.25,
+  });
 }
 
 export function metalMat(color = '#b9bec4', roughness = 0.42) {
@@ -133,9 +161,144 @@ const q = (n) => Math.round(n * 1000) / 1000;   // kill float noise in the key
 
 export function geometryCacheSize() { return _geoCache.size; }
 
+
+// ---------------------------------------------------------------------------
+/**
+ * A box with its twelve edges chamfered.
+ *
+ * This is the single biggest thing separating "assembled from primitives" from
+ * "modelled": a perfectly sharp 90° edge catches no light, so a room built from
+ * BoxGeometry reads as untextured plastic no matter how good the materials are.
+ * A chamfer barely a few centimetres across picks up a specular line along every
+ * edge, and the eye reads that line as a manufactured object.
+ *
+ * Built indexed and hand-UV'd rather than with ExtrudeGeometry, for two
+ * reasons: mergeStatic() only merges indexed geometry, so an unindexed box would
+ * quietly cost us the draw-call budget; and Extrude's UV generator does not
+ * match BoxGeometry's per-face 0..1 convention, which every tiled material here
+ * assumes.
+ *
+ * 96 vertices and 44 triangles against BoxGeometry's 24 and 12 — affordable,
+ * because the geometry cache means each distinct size is built exactly once.
+ */
+export function chamferBox(w, h, d, r) {
+  const hx = w / 2, hy = h / 2, hz = d / 2;
+  r = Math.min(r, Math.min(w, h, d) * 0.24);
+
+  const pos = [], nor = [], uv = [], idx = [];
+
+  // UVs are projected planar on the dominant axis of the face normal, which
+  // reproduces BoxGeometry's convention closely enough that every tiled
+  // material keeps its scale.
+  const pushVert = (p, n) => {
+    pos.push(p[0], p[1], p[2]);
+    nor.push(n[0], n[1], n[2]);
+
+    // Choosing the projection axis by the largest normal component alone is
+    // wrong for anything flat. A wall plate 0.08 deep has chamfer strips whose
+    // normal is a 45° blend of "outward" and "sideways"; picking the sideways
+    // axis projects the whole texture across 0.08 of a unit and smears it into
+    // a streak around every edge. Dividing by the box's extent on that axis
+    // makes a thin dimension the *preferred* projection direction, which is
+    // what the flat face already uses — so edges and faces agree.
+    const sx = Math.abs(n[0]) / w, sy = Math.abs(n[1]) / h, sz = Math.abs(n[2]) / d;
+    let u, v;
+    if (sx >= sy && sx >= sz) { u = (p[2] + hz) / d; v = (p[1] + hy) / h; }
+    else if (sy >= sz) { u = (p[0] + hx) / w; v = (p[2] + hz) / d; }
+    else { u = (p[0] + hx) / w; v = (p[1] + hy) / h; }
+    uv.push(u, v);
+  };
+
+  // Winding has to agree with the declared normal or the triangle is invisible:
+  // three.js culls back faces by default, so a quad listed the wrong way round
+  // simply is not drawn. Emitting the six faces, twelve strips and eight corners
+  // by hand and hoping each one came out consistent is exactly the sort of thing
+  // that fails silently — half of them did, which is why every box lost its top.
+  // So rather than trust the vertex order, check it: cross the edges, compare
+  // against the normal we meant, and reverse if they disagree.
+  const facesForward = (a, b, c, n) => {
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+    const vx = c[0] - a[0], vy = c[1] - a[1], vz = c[2] - a[2];
+    const cx = uy * vz - uz * vy, cy = uz * vx - ux * vz, cz = ux * vy - uy * vx;
+    return cx * n[0] + cy * n[1] + cz * n[2] >= 0;
+  };
+
+  const quad = (a, b, c, e, n) => {
+    if (!facesForward(a, b, c, n)) { const t = a; a = e; e = t; const u = b; b = c; c = u; }
+    const base = pos.length / 3;
+    pushVert(a, n); pushVert(b, n); pushVert(c, n); pushVert(e, n);
+    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  };
+  const tri = (a, b, c, n) => {
+    if (!facesForward(a, b, c, n)) { const t = b; b = c; c = t; }
+    const base = pos.length / 3;
+    pushVert(a, n); pushVert(b, n); pushVert(c, n);
+    idx.push(base, base + 1, base + 2);
+  };
+
+  const ix = hx - r, iy = hy - r, iz = hz - r;
+  const S = [-1, 1];
+  const nrm = (v) => {
+    const l = Math.hypot(v[0], v[1], v[2]) || 1;
+    return [v[0] / l, v[1] / l, v[2] / l];
+  };
+
+  // --- the six faces, inset by the chamfer --------------------------------
+  for (const s of S) {
+    quad([s * hx, -iy, -iz], [s * hx, -iy, iz], [s * hx, iy, iz], [s * hx, iy, -iz],
+      [s, 0, 0]);
+    quad([-ix, s * hy, -iz], [ix, s * hy, -iz], [ix, s * hy, iz], [-ix, s * hy, iz],
+      [0, s, 0]);
+    quad([-ix, -iy, s * hz], [ix, -iy, s * hz], [ix, iy, s * hz], [-ix, iy, s * hz],
+      [0, 0, s]);
+  }
+
+  // --- the twelve chamfer strips ------------------------------------------
+  for (const a of S) for (const b of S) {
+    quad([a * hx, b * iy, -iz], [a * hx, b * iy, iz],
+      [a * ix, b * hy, iz], [a * ix, b * hy, -iz], nrm([a, b, 0]));          // x/y
+    quad([a * hx, -iy, b * iz], [a * hx, iy, b * iz],
+      [a * ix, iy, b * hz], [a * ix, -iy, b * hz], nrm([a, 0, b]));          // x/z
+    quad([-ix, a * hy, b * iz], [ix, a * hy, b * iz],
+      [ix, a * iy, b * hz], [-ix, a * iy, b * hz], nrm([0, a, b]));          // y/z
+  }
+
+  // --- the eight corners ---------------------------------------------------
+  for (const a of S) for (const b of S) for (const c of S) {
+    tri([a * hx, b * iy, c * iz], [a * ix, b * hy, c * iz], [a * ix, b * iy, c * hz],
+      nrm([a, b, c]));
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  geo.computeBoundingSphere();
+  return geo;
+}
+
+/**
+ * How much chamfer a box of this size should get — and whether it is worth any.
+ *
+ * Below about a tenth of a unit the bevel is smaller than a pixel at this camera
+ * distance, so slats, chain links and bin lips pay four times the vertex count
+ * for nothing. Those keep sharp edges.
+ */
+function chamferFor(w, h, d) {
+  const m = Math.min(w, h, d);
+  if (m < 0.09) return 0;
+  return Math.max(0.012, Math.min(0.05, m * 0.11));
+}
+
 export function box(w, h, d, material, o = {}) {
-  const g = cached(`b|${q(w)}|${q(h)}|${q(d)}|${o.rough ?? 0}`, () => {
-    const geo = new THREE.BoxGeometry(w, h, d);
+  // `sharp` opts out — a few things (thin decals, screens) look better without,
+  // and a roughened box is displaced afterwards anyway so it gains nothing.
+  const bevel = o.sharp || o.rough ? 0 : chamferFor(w, h, d);
+  const g = cached(`b|${q(w)}|${q(h)}|${q(d)}|${o.rough ?? 0}|${q(bevel)}`, () => {
+    const geo = bevel > 0
+      ? chamferBox(w, h, d, bevel)
+      : new THREE.BoxGeometry(w, h, d);
     if (o.rough) roughen(geo, o.rough);
     return geo;
   });
@@ -166,14 +329,56 @@ export function lathe(profile, material, segments = 14) {
 }
 
 /** A flat quad lying on the floor — rugs, light pools, decals. */
-export function decal(w, d, material, y = 0.02) {
+/**
+ * Heights for anything lying flat on a floor.
+ *
+ * Everything used to sit between 0.02 and 0.035, which put rugs and floor paint
+ * six thousandths of a unit apart. Across a 220-unit depth range that is about
+ * 2.7e-5 — right at the resolution of a 16-bit depth buffer — so which one won
+ * changed as the camera moved, and the floor flickered.
+ *
+ * The ladder below is spaced forty thousandths apart, roughly seven times the
+ * precision floor, and the lift is invisible from an isometric camera thirty
+ * units up. Use these rather than writing a literal.
+ */
+export const FLOOR = {
+  stain: 0.03,      // paint splashes, spills — under everything
+  marking: 0.07,    // hazard tape, bay outlines, painted zones
+  rug: 0.11,        // rugs and mats
+  light: 0.15,      // sun pools and other additive light patches
+};
+
+// Decal materials get a polygon offset as well as the height separation: the
+// offset handles decal-against-floor, the ladder handles decal-against-decal.
+const _decalMats = new Map();
+function decalMaterial(material, y) {
+  // Offset by a metre before rounding so heights below zero still separate.
+  // Clamping negatives to zero gave the lawn and the verge — which sit at -0.40
+  // and -0.36 — the same layer, the same polygon offset and the same render
+  // order, so nothing decided which of them drew first.
+  const layer = Math.round((y + 1) * 100);
+  const key = `${material.uuid}|${layer}`;
+  let m = _decalMats.get(key);
+  if (!m) {
+    m = material.clone();
+    m.polygonOffset = true;
+    m.polygonOffsetFactor = -1;
+    m.polygonOffsetUnits = -(2 + (layer % 40) * 2);
+    _decalMats.set(key, m);
+  }
+  return m;
+}
+
+export function decal(w, d, material, y = FLOOR.stain) {
   const g = cached(`p|${q(w)}|${q(d)}`, () => {
     const geo = new THREE.PlaneGeometry(w, d);
     geo.rotateX(-Math.PI / 2);
     return geo;
   });
-  const m = new THREE.Mesh(g, typeof material === 'string' ? paint(material) : material);
+  const base = typeof material === 'string' ? paint(material) : material;
+  const m = new THREE.Mesh(g, decalMaterial(base, y));
   m.position.y = y;
+  m.renderOrder = Math.round((y + 1) * 100);          // deterministic ordering
   m.receiveShadow = true;
   return m;
 }
@@ -308,9 +513,24 @@ export function textPlate(text, o = {}) {
   g.fillStyle = o.color ?? '#e7e0d2';
   g.textAlign = 'center'; g.textBaseline = 'middle';
   const lines = Array.isArray(text) ? text : [text];
-  const size = o.size ?? Math.floor(h * 0.42);
-  g.font = `${o.weight ?? 700} ${size}px ${o.font ?? '"Syne", Georgia, serif'}`;
+  // Shrink to fit rather than overflow. Without this a plate silently clips its
+  // own text the moment the string is a little longer than the author expected
+  // — which is exactly what happened to the title over the front door.
+  let size = o.size ?? Math.floor(h * 0.42);
+  const weight = o.weight ?? 700;
+  const face = o.font ?? '"Syne", Georgia, serif';
   if (o.letterSpacing) g.letterSpacing = o.letterSpacing;
+  const inner = w - (o.pad ?? 44);
+  const widest = () => {
+    g.font = `${weight} ${size}px ${face}`;
+    return Math.max(...lines.map((ln) => g.measureText(String(ln)).width), 1);
+  };
+  let guard = 0;
+  while (widest() > inner && size > 8 && guard++ < 80) size -= 2;
+  // and keep the block inside the plate vertically too
+  const blockH = lines.length * size * 1.25;
+  if (blockH > h - 24) size = Math.max(8, Math.floor(size * (h - 24) / blockH));
+  g.font = `${weight} ${size}px ${face}`;
   lines.forEach((ln, i) => {
     g.fillText(ln, w / 2, h / 2 + (i - (lines.length - 1) / 2) * size * 1.25);
   });

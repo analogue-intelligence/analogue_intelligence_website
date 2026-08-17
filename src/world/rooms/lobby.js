@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { M, box, cyl, lathe, paint, surface, decal } from '../materials.js';
+import { M, box, cyl, lathe, paint, surface, decal , FLOOR } from '../materials.js';
 import {
   table, roundTable, chair, stool, sofa, plant, hangingPlant, pendant,
   floorLamp, sconce, noticeBoard, rug, framedArt, bookshelf,
@@ -60,7 +60,10 @@ export function buildLobby(ctx) {
     paint('#e8dfc4', { emissive: '#e8dfc4', emissiveIntensity: 0.5 }));
   gauge.position.set(0, 0.1, 0.46); machine.add(gauge);
   ctx.add(machine, barX + 2.6, 1.78, 17.2);
-  ctx.interact('lb_espresso', machine, ctx.anchor(barX + 2.6, 2.6, 17.2));
+  // Not interactable any more. Its label sat directly over the Curator, who is
+  // the one thing in this room anybody actually needs to find. The machine
+  // stays as furniture — a coffee bar without one would be strange — it just no
+  // longer competes for the same patch of screen.
   ctx.tick((dt) => { gauge.material.emissiveIntensity = 0.4 + Math.sin(performance.now() * 0.002) * 0.15; });
 
   // steam, drifting up off the group head
@@ -72,7 +75,7 @@ export function buildLobby(ctx) {
   for (let i = -2; i <= 2; i++) ctx.add(stool(1.0), barX + i * 1.7, 0, 19.4);
 
   // ------------------------------------------------------------- seating ---
-  ctx.add(rug(7, 5, [1, 1]), 5, 0.02, 20);
+  ctx.add(rug(7, 5, [1, 1]), 5, FLOOR.rug, 20);
   ctx.add(sofa(3.6, '#4f6055'), 5, 0, 22.6, Math.PI);
   ctx.collide(5, 22.6, 3.6, 1.4, 0);
   ctx.add(sofa(2.6, '#6b4a48'), 8.8, 0, 19.6, -Math.PI / 2);
@@ -114,16 +117,16 @@ export function buildLobby(ctx) {
   gram.add(horn);
   const disc = cyl(0.42, 0.42, 0.03, paint('#1a1a1e'), 20);
   disc.position.y = 0.4; gram.add(disc);
-  ctx.add(gram, -11, 0.38, 23.4, 0.4);
-  ctx.collide(-11, 23.4, 1.1, 1.1, 0);
-  ctx.interact('lb_gramophone', gram, ctx.anchor(-11, 2.0, 23.4));
+  ctx.add(gram, -11, 0.38, 27.4, 0.4);
+  ctx.collide(-11, 27.4, 1.1, 1.1, 0);
+  ctx.interact('lb_gramophone', gram, ctx.anchor(-11, 2.0, 27.4));
   ctx.tick((dt) => { disc.rotation.y += dt * 1.4; });
 
   // ------------------------------------------------------------- dressing --
   ctx.add(plant(1.35), -11, 0, 13.6);
-  ctx.add(plant(1.1), 10.6, 0, 24.4);
+  ctx.add(plant(1.1), 10.6, 0, 28.4);
   ctx.add(hangingPlant(1.1), -3.5, 6.6, 14.2);
-  ctx.add(hangingPlant(0.9), 3.5, 6.6, 24.2);
+  ctx.add(hangingPlant(0.9), 3.5, 6.6, 28.2);
   ctx.add(bookshelf(2.2, 2.6, 0.7, '#54391f', 2), 11, 0, 14.4, -Math.PI / 2);
   ctx.collide(11, 14.4, 0.7, 2.2, 0);
 
@@ -141,8 +144,8 @@ export function buildLobby(ctx) {
   ctx.add(pendant('#c97a3a', 2.2, 0.5), barX + 3.5, 5.4, 17.5);
   ctx.lamp(0xffcf94, barX + 0.5, 4.6, 17.5, { intensity: 26, distance: 18, size: 5, opacity: 0.42 });
   ctx.lamp(0xffd9a8, 5, 4.4, 20.6, { intensity: 20, distance: 15, size: 4.4, opacity: 0.38 });
-  ctx.add(floorLamp('#c9a24a'), 8.6, 0, 23.4);
-  ctx.lamp(0xffdcae, 8.6, 2.4, 23.4, { intensity: 12, distance: 9, size: 2.8, opacity: 0.35 });
+  ctx.add(floorLamp('#c9a24a'), 8.6, 0, 27.4);
+  ctx.lamp(0xffdcae, 8.6, 2.4, 27.4, { intensity: 12, distance: 9, size: 2.8, opacity: 0.35 });
   for (const z of [15, 22]) {
     ctx.add(sconce('#c9a24a'), -11.7, 4.4, z, Math.PI / 2);
     ctx.lamp(0xffcf94, -11.2, 4.5, z, { intensity: 8, distance: 8, size: 2.2, opacity: 0.3 });
@@ -192,7 +195,10 @@ function makeSteam() {
     color: 0xf2e8d8, size: 0.16, transparent: true, opacity: 0.16,
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
-  const tick = (dt) => {
+  const HOME_PT = new THREE.Vector3(-9, 2, 17);
+  const tick = (dt, playerPos) => {
+    // no point animating motes nobody is in the room to see
+    if (playerPos && playerPos.distanceToSquared(HOME_PT) > 1200) return;
     const a = geo.attributes.position.array;
     for (let i = 0; i < N; i++) {
       a[i * 3 + 1] += dt * 0.42;

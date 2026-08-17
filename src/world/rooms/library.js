@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { M, box, cyl, lathe, paint, surface, decal, textPlate } from '../materials.js';
+import { M, box, cyl, lathe, paint, surface, decal, textPlate , FLOOR } from '../materials.js';
 import {
   bookshelf, table, chair, plant, pendant, deskLamp, sconce, railing, rug, plaque, framedArt,
 } from '../props.js';
@@ -21,7 +21,7 @@ export function buildLibrary(ctx) {
   ctx.add(rail, -4, Y, -11.4);
   ctx.collide(-4, -11.4, 19, 0.4, Y);
 
-  ctx.add(rug(9, 6, [1, 1]), 0, Y + 0.02, -18);
+  ctx.add(rug(9, 6, [1, 1]), 0, Y + FLOOR.rug, -18);
 
   // ------------------------------------------------------- the four bays ---
   const BAYS = [

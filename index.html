@@ -2,9 +2,21 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+<<<<<<< Updated upstream
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <title>Analogue Intelligence Lab</title>
   <meta name="description" content="An explorable building for the Analogue Intelligence research group: a hall of projects, a robotics lab, a creative studio and a library." />
+=======
+  <!-- viewport-fit covers the notch; the app scales itself, so let the browser
+       keep pinch-zoom off and hand gestures to the canvas instead -->
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Analogue Intelligence Lab</title>
+  <meta name="description" content="An explorable building for the Analogue Intelligence Lab: a hall of projects, a robotics lab, a creative studio and a library." />
+>>>>>>> Stashed changes
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -35,15 +47,39 @@
   </noscript>
 
   <!--
-    If anything throws before the first frame, the page would otherwise just sit
-    there dark — the stylesheet loads, nothing else does. This puts the actual
-    error on screen instead of hiding it in the console.
+    Boot diagnostics.
+
+    If the app never comes up, the page would otherwise just sit there dark —
+    the stylesheet loads and nothing else does. This puts the real error on
+    screen instead of hiding it in the console.
+
+    But it must be *conservative*, and originally it was not: it took over the
+    whole page for any error or promise rejection from anywhere, including
+    scripts that are nothing to do with this site. Safari reports browser
+    extension code as `webkit-masked-url://hidden/`, and an ad blocker throwing
+    an unhandled rejection during a reload was enough to replace a perfectly
+    healthy building with an error screen.
+
+    So: only take over if the world genuinely never built (`window.AI` absent),
+    and only for errors that came from our own files.
   -->
   <script>
     (function () {
       var shown = false;
+
+      function ours(url) {
+        if (!url) return false;                       // no source: not ours
+        if (url.indexOf('webkit-masked-url') === 0) return false;   // extension
+        if (url.indexOf('chrome-extension') === 0) return false;
+        if (url.indexOf('moz-extension') === 0) return false;
+        if (url.indexOf('safari-extension') === 0) return false;
+        return url.indexOf(location.origin) === 0 || url.charAt(0) === '/'
+          || url.indexOf('://') === -1;
+      }
+
       function report(what, where) {
-        if (shown) return; shown = true;
+        if (shown) return;
+        shown = true;
         var d = document.createElement('div');
         d.setAttribute('style',
           'position:fixed;inset:0;z-index:9999;overflow:auto;padding:48px;' +
@@ -52,29 +88,48 @@
           '<div style="font:700 24px/1.2 Georgia,serif;margin-bottom:6px">The building did not stand up.</div>' +
           '<div style="color:#c9a24a;letter-spacing:.16em;font-size:10px;text-transform:uppercase;margin-bottom:26px">boot error</div>' +
           '<pre style="white-space:pre-wrap;color:#e08a72;margin:0 0 22px">' +
-            String(what).replace(/[<>&]/g, function (c) { return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]; }) +
+            String(what).replace(/[<>&]/g, function (c) {
+              return { '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c];
+            }) +
           '</pre>' +
-          '<div style="color:rgba(231,224,210,.55)">' + where + '</div>';
+          '<div style="color:rgba(231,224,210,.55)">' + where + '</div>' +
+          '<div style="color:rgba(231,224,210,.35);margin-top:18px">If you have just replaced the files, try a hard refresh first — the browser caches ES modules aggressively.</div>';
         document.body.appendChild(d);
       }
+
       window.addEventListener('error', function (e) {
+        if (window.AI) return;                        // already running: not fatal
         if (e.target && e.target.tagName === 'SCRIPT') {
           report('Failed to load ' + (e.target.src || 'a script'),
-            'Check that you are serving over http:// and not opening the file directly, and that three.js could be fetched from the CDN.');
-        } else {
-          report((e.error && e.error.stack) || e.message, (e.filename || '') + ':' + e.lineno);
+            'Check that you are serving over http:// rather than opening the file directly, and that three.js could be fetched from the CDN.');
+          return;
         }
+        if (!ours(e.filename)) {
+          console.warn('[boot] ignoring an error from outside this site:', e.filename, e.message);
+          return;
+        }
+        report((e.error && e.error.stack) || e.message, (e.filename || '') + ':' + e.lineno);
       }, true);
+
       window.addEventListener('unhandledrejection', function (e) {
-        report((e.reason && e.reason.stack) || e.reason, 'unhandled promise rejection');
+        if (window.AI) return;
+        var stack = (e.reason && e.reason.stack) || String(e.reason || '');
+        // A rejection carries no filename, so judge it by its stack. Anything
+        // masked or from an extension is somebody else's problem.
+        if (/webkit-masked-url|chrome-extension|moz-extension|safari-extension/.test(stack)) {
+          console.warn('[boot] ignoring a rejection from outside this site:', stack);
+          return;
+        }
+        report(stack || e.reason, 'unhandled promise rejection');
       });
-      // If the module never runs at all, say so rather than showing nothing.
+
+      // Last resort: if the module never runs at all, say so.
       setTimeout(function () {
         if (!window.AI && !shown) {
-          report('main.js did not finish loading within 12 seconds.',
+          report('main.js did not finish loading within 15 seconds.',
             'Most often this is the import map: three.js is fetched from jsDelivr, so the first load needs a network connection. Vendor it locally if you are working offline — see the README.');
         }
-      }, 12000);
+      }, 15000);
     })();
   </script>
 

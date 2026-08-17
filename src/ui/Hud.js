@@ -22,6 +22,7 @@ export class Hud {
         <span><b>C</b> change your character</span>
         <span><b>M</b> map</span>
         <span><b>Q</b> quality <i class="hud-q">medium</i></span>
+        <span><b>F</b> performance</span>
       </div>
       <div class="hud-prompt"></div>
     `;

@@ -4,6 +4,7 @@ import {
 } from './floorplan.js';
 import { M, PALETTE, box, cyl, paint, surface, decal, textPlate, mergeStatic } from './materials.js';
 import { buildDaylight } from './sunlight.js';
+import { buildApproach } from './road.js';
 import { railing, plant } from './props.js';
 import { Door, shopSign } from './Door.js';
 import { Cutaway } from './Cutaway.js';
@@ -12,8 +13,9 @@ import { Ctx } from './Ctx.js';
 
 import { buildLobby } from './rooms/lobby.js';
 import { buildHall } from './rooms/hall.js';
-import { buildRobotics } from './rooms/robotics.js';
-import { buildStudio } from './rooms/studio.js';
+import { buildLab } from './rooms/lab.js';
+import { buildClassroom } from './rooms/classroom.js';
+import { buildPartners } from './rooms/partners.js';
 import { buildLibrary } from './rooms/library.js';
 
 // -----------------------------------------------------------------------------
@@ -27,8 +29,8 @@ import { buildLibrary } from './rooms/library.js';
 
 const WALL_T = 0.5;                       // wall thickness
 const ROOM_BUILDERS = {
-  lobby: buildLobby, hall: buildHall, robotics: buildRobotics,
-  studio: buildStudio, library: buildLibrary,
+  lobby: buildLobby, hall: buildHall, lab: buildLab, classroom: buildClassroom,
+  partners: buildPartners, library: buildLibrary,
 };
 
 export function buildBuilding() {
@@ -47,40 +49,68 @@ export function buildBuilding() {
   // baked by tools/bake_textures.py: clumped tone variation with fourteen
   // thousand short blades laid over it, which is what stops a large flat plane
   // reading as a green rectangle from thirty units up.
+  // The height goes *into* decal(), not on after it — the render order and the
+  // polygon offset are both derived from it, so moving the mesh afterwards
+  // leaves it layered as though it were somewhere else.
+  //
+  // -0.40 puts it below the room floor slabs, which are 0.3 thick with their
+  // top at zero; a lawn anywhere above -0.30 runs through all six of them.
+  //
+  // repeat 16 rather than 26: a 220-unit plane tiled 26 times minifies hard in
+  // the distance, and that shimmer reads as the ground glitching.
   const ground = decal(220, 220, surface({
-    map: 'grass', repeat: [30, 30], color: '#ffffff', roughness: 1, normalScale: 0.5,
-  }), -0.06);
-  ground.position.set(0, -0.06, 0);
+    map: 'grass', repeat: [16, 16], color: '#b9d69a', roughness: 1, normalScale: 0.3,
+  }), -0.40);
+  ground.position.x = 0; ground.position.z = 0;
   group.add(ground);
 
   // A darker mown band right around the building, so the walls meet something
   // rather than floating on a tile pattern.
+  // 0.08 above the lawn, not 0.01. These two overlap across eighty-eight units
+  // by a hundred and four, so a hundredth of a unit between them is the largest
+  // z-fight in the project — most of what you see outdoors was flickering.
   const verge = decal(104, 88, surface({
-    map: 'grass', repeat: [14, 12], color: '#c6d8a8', roughness: 1,
-  }), -0.05);
-  verge.position.set(0, -0.05, -2);
+    map: 'grass', repeat: [9, 8], color: '#a7cb87', roughness: 1,
+  }), -0.30);
+  verge.position.x = 0; verge.position.z = -2;
   group.add(verge);
 
   // shrubs and tufts scattered along the approach — cheap, merged, and the only
   // thing that stops the lawn looking like a putting green
-  const shrubMat = surface({ map: 'fabric', repeat: [2, 2], color: '#5d7a3a', roughness: 1 });
+  const shrubMat = surface({ map: 'fabric', repeat: [2, 2], color: '#6f9a49', roughness: 1 });
+  shrubMat.name = 'planting';        // so a test can find them after merging
   const tufts = new THREE.Group();
+  tufts.name = 'planting';
   let seed = 7;
   const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
-  for (let i = 0; i < 90; i++) {
-    const a = rnd() * Math.PI * 2;
-    const r = 26 + rnd() * 44;
-    const x = Math.cos(a) * r, z = Math.sin(a) * r * 0.8 + 4;
-    // keep the forecourt and the path to the door clear
-    if (Math.abs(x) < 14 && z > 22) continue;
-    const s = 0.5 + rnd() * 1.1;
-    const bush = box(1.5 * s, 1.15 * s, 1.4 * s, shrubMat, { rough: 0.09, cast: true });
-    bush.position.set(x, 0.5 * s - 0.1, z);
+
+  // Keep-out rectangles: every room, plus the forecourt and the path to the
+  // door. Scattering on a radius alone put shrubs inside the robotics bays,
+  // because the building is not round and the rooms reach well past any radius
+  // small enough to keep the lawn looking planted.
+  const keepOut = ROOMS.map((r) => ({
+    x0: r.x0 - 2.5, x1: r.x1 + 2.5, z0: r.z0 - 2.5, z1: r.z1 + 2.5,
+  }));
+  keepOut.push({ x0: -15, x1: 15, z0: 24, z1: 44 });     // forecourt and steps
+  const inside = (x, z) => keepOut.some(
+    (k) => x > k.x0 && x < k.x1 && z > k.z0 && z < k.z1);
+
+  for (let i = 0; i < 320 && tufts.children.length < 120; i++) {
+    const x = BOUNDS.x0 - 6 + rnd() * (BOUNDS.x1 - BOUNDS.x0 + 12);
+    const z = BOUNDS.z0 - 6 + rnd() * (BOUNDS.z1 - BOUNDS.z0 + 12);
+    if (inside(x, z)) continue;
+
+    const sc = 0.5 + rnd() * 1.1;
+    const bush = box(1.5 * sc, 1.15 * sc, 1.4 * sc, shrubMat, { rough: 0.09, cast: true });
+    bush.position.set(x, 0.5 * sc - 0.1, z);
     bush.rotation.y = rnd() * 3;
     tufts.add(bush);
+
     if (rnd() > 0.62) {
-      const t = box(0.5 * s, 0.55 * s, 0.5 * s, shrubMat, { rough: 0.06, cast: false });
-      t.position.set(x + (rnd() - 0.5) * 3, 0.24 * s - 0.1, z + (rnd() - 0.5) * 3);
+      const tx = x + (rnd() - 0.5) * 3, tz = z + (rnd() - 0.5) * 3;
+      if (inside(tx, tz)) continue;
+      const t = box(0.5 * sc, 0.55 * sc, 0.5 * sc, shrubMat, { rough: 0.06, cast: false });
+      t.position.set(tx, 0.24 * sc - 0.1, tz);
       tufts.add(t);
     }
   }
@@ -89,7 +119,7 @@ export function buildBuilding() {
 
   // forecourt + steps up to the front door
   const court = decal(26, 16, M.stone([6, 4]), -0.04);
-  court.position.set(0, -0.04, 34);
+  court.position.x = 0; court.position.z = 34;
   group.add(court);
   for (let i = 0; i < 3; i++) {
     const s = box(9 - i * 0.6, 0.22, 1.5, M.stone([3, 1]));
@@ -146,12 +176,21 @@ export function buildBuilding() {
   }
 
   // hanging sign + a pair of planters outside the front door
+<<<<<<< Updated upstream
   const sign = shopSign('ANALOGUE INTELLIGENCE', 'Software, AI, and Creativity');
   sign.position.set(0, 7.4, 26.9);
+=======
+  // Outside the front door, which moved to z = 30 when the lobby was deepened —
+  // the sign and its planters were left standing in the middle of the lobby.
+  // y = 6.55 sits the board clear above the 5.6 doorway with the bar under the
+  // 8-unit wall top.
+  const sign = shopSign('ANALOGUE INTELLIGENCE', 'Software, AI, and Creativity');
+  sign.position.set(0, 6.55, 30.9);
+>>>>>>> Stashed changes
   group.add(sign);
   for (const sx of [-1, 1]) {
     const p = plant(1.25);
-    p.position.set(sx * 5, 0, 28.6);
+    p.position.set(sx * 5, 0, 32.6);
     group.add(p);
   }
 
@@ -161,15 +200,20 @@ export function buildBuilding() {
     ctx.room = r.id;
     ROOM_BUILDERS[r.id]?.(ctx, r);
   }
+  // the approach belongs to no room, so it is never shrouded and its sign is
+  // always readable — which matters, because reading it is the tutorial
+  ctx.room = 'approach';
+  buildApproach(ctx);
   ctx.room = null;
 
-  const spawn = new THREE.Vector3(0, 0, 22.5);
+  const spawn = new THREE.Vector3(0, 0, 26.5);   // used only when the prologue is skipped
   const tick = (dt, playerPos) => { for (const fn of animate) fn(dt, playerPos); };
 
   // daylight last, so a window can sit in front of whatever the room builder put
   // against that wall rather than behind it
   buildDaylight(group, ROOMS, animate, cutaway);
 
+  buildInvisibleCeilings(group);
   trimShadows(group);
   const merged = mergeSceneStatics(group, { tick, interactables, cutaway, doors });
 
@@ -196,6 +240,7 @@ function trimShadows(group, minRadius = 1.05) {
   let cast = 0, total = 0;
   group.traverse((o) => {
     if (!o.isMesh) return;
+    if (o.userData.ceiling) { cast++; total++; return; }
     total++;
     const g = o.geometry;
     if (!g.boundingSphere) g.computeBoundingSphere();
@@ -320,8 +365,11 @@ function buildStairs(group, colliders, cutaway) {
 
 /** The balcony landing at the top of the stairs, hanging over the hall. */
 function buildLanding(group, colliders, floorMeshes) {
+  // 0.02 below the library floor, whose slab covers this same footprint. Level
+  // with it, the two top faces shared a plane and flickered against each other
+  // exactly like the plinth did.
   const slab = box(8, 0.36, 3.5, M.floorWood([2, 1]));
-  slab.position.set(12, UPPER_Y - 0.18, -9.75);
+  slab.position.set(12, UPPER_Y - 0.20, -9.75);
   slab.receiveShadow = true;
   slab.name = 'floor_landing';
   group.add(slab);
@@ -386,7 +434,9 @@ function mergeSceneStatics(group, { tick, interactables, cutaway, doors }) {
   // Run the animation across a wide time window, with the player nowhere near
   // anything, so proximity-driven motion stays out of the sample.
   const far = new THREE.Vector3(0, 0, 200);
-  for (let i = 0; i < 64; i++) tick(0.037 + (i % 5) * 0.011, far);
+  // 24 ticks across a wide dt spread catches everything 64 did, at a third of
+  // the startup cost — this probe runs before the first frame can be drawn.
+  for (let i = 0; i < 24; i++) tick(0.041 + (i % 7) * 0.019, far);
   const second = sample();
 
   for (const [mesh, h] of first) {
@@ -397,6 +447,7 @@ function mergeSceneStatics(group, { tick, interactables, cutaway, doors }) {
   const buckets = new Map();
   group.traverse((o) => {
     if (!o.isMesh || exclude.has(o) || Array.isArray(o.material)) return;
+    if (o.userData.ceiling) return;           // its material is the whole point
     const g = o.geometry;
     if (!g?.index || !g.attributes.position || !g.attributes.normal || !g.attributes.uv) return;
     const key = o.material.uuid;
@@ -404,7 +455,7 @@ function mergeSceneStatics(group, { tick, interactables, cutaway, doors }) {
     buckets.get(key).push(o);
   });
 
-  let saved = 0;
+  let saved = 0, baked = 0;
   const shed = new THREE.Group();
   shed.name = 'static_merged';
   for (const [, meshes] of buckets) {
@@ -416,10 +467,124 @@ function mergeSceneStatics(group, { tick, interactables, cutaway, doors }) {
     for (const m of meshes) holder.attach(m);
     mergeStatic(holder);
     saved += meshes.length - holder.children.length;
+    for (const child of holder.children) {
+      child.updateWorldMatrix(true, false);
+      bakeVertexLight(child);
+      baked++;
+    }
     shed.add(...holder.children);
   }
   group.add(shed);
 
   const ms = Math.round(performance.now() - before);
-  return { drawCallsSaved: saved, ms };
+  return { drawCallsSaved: saved, vertexLitMeshes: baked, ms };
+}
+
+/**
+ * Bake a light bounce and a contact darkening into vertex colours.
+ *
+ * Two tricks straight out of Bruno Simon's portfolio case study, adapted to a
+ * scene that is generated rather than modelled in Blender.
+ *
+ *   · **Faked floor bounce.** True bounce lighting is not affordable in real
+ *     time, so he approximated it: the more a face points at the ground and the
+ *     closer it is, the more it takes the floor's colour. Here the floor is
+ *     warm boards, so downward-facing geometry near it picks up a little amber.
+ *
+ *   · **Baked contact shadow.** He baked his in Blender and shipped PNGs. We
+ *     have no Blender, but we do have the geometry on the CPU at build time, so
+ *     the same information can go straight into a colour attribute: darken
+ *     vertices close to the floor, which is where a real contact shadow lives.
+ *
+ * Both are free at runtime — a vertex colour costs one multiply in the shader —
+ * and they add exactly the grounded, soft-shaded quality that separates a
+ * modelled scene from a pile of lit primitives.
+ */
+const BOUNCE = new THREE.Color('#e8b478');     // the floor's colour, roughly
+const BOUNCE_REACH = 2.6;                      // how far up it carries
+const CONTACT_REACH = 0.85;                    // how far up the darkening goes
+
+function bakeVertexLight(mesh, floorY = 0) {
+  const geo = mesh.geometry;
+  const pos = geo.attributes.position;
+  const nor = geo.attributes.normal;
+  if (!pos || !nor || geo.attributes.color) return;
+
+  const col = new Float32Array(pos.count * 3);
+  const v = new THREE.Vector3();
+  const n = new THREE.Vector3();
+
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
+    n.fromBufferAttribute(nor, i);
+
+    const height = Math.max(0, v.y - floorY);
+
+    // downward-facing and low: takes colour back off the floor
+    const downness = Math.max(0, -n.y);
+    const near = Math.max(0, 1 - height / BOUNCE_REACH);
+    const bounce = downness * near * near * 0.42;
+
+    // anything close to the floor sits in its own contact shadow, whichever
+    // way it faces — strongest right at the join
+    const contact = Math.pow(Math.max(0, 1 - height / CONTACT_REACH), 2) * 0.30;
+
+    // and a gentle sky term the other way, so up-facing surfaces lift
+    const sky = Math.max(0, n.y) * 0.06;
+
+    const k = 1 - contact + sky;
+    col[i * 3] = k + BOUNCE.r * bounce;
+    col[i * 3 + 1] = k + BOUNCE.g * bounce * 0.72;
+    col[i * 3 + 2] = k + BOUNCE.b * bounce * 0.4;
+  }
+
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+
+  // vertexColors is a material flag, and materials here are shared and cached,
+  // so give this one its own copy rather than switching it on for every object
+  // that happens to use the same paint.
+  const m = mesh.material.clone();
+  m.vertexColors = true;
+  mesh.material = m;
+}
+
+/**
+ * Roofs you cannot see.
+ *
+ * The building is drawn as a cutaway diorama, so no room has a ceiling. That is
+ * right for the view and wrong for the light: with nothing overhead, the sun
+ * lands on every interior surface at full strength, as though each room were an
+ * open courtyard. Tabletops, shelf tops and the upper halves of wall panels
+ * were receiving direct sun *and* the sky at once, clipping to white and losing
+ * all their detail. The tops of things looked like they had stopped rendering;
+ * they had actually run off the top of the exposure range.
+ *
+ * The fix is a ceiling that exists for the shadow map and for nothing else.
+ * `colorWrite: false` means the mesh draws no pixels — the room is still open
+ * to the camera — but it is a normal member of the shadow pass, so the sun is
+ * blocked exactly as a real roof would block it. Interiors are then lit by the
+ * hemisphere, the pooled lamps and the painted sun pools, which is what they
+ * were always meant to be lit by.
+ *
+ * One quad per room, and it costs nothing to draw.
+ */
+function buildInvisibleCeilings(group) {
+  for (const r of ROOMS) {
+    const w = r.x1 - r.x0, d = r.z1 - r.z0;
+    const geo = new THREE.PlaneGeometry(w, d);
+    geo.rotateX(Math.PI / 2);                 // face down, toward the room
+
+    const mat = new THREE.MeshBasicMaterial({
+      colorWrite: false,                      // shadows only, never seen
+      depthWrite: false,
+      fog: false,
+    });
+    const lid = new THREE.Mesh(geo, mat);
+    lid.position.set((r.x0 + r.x1) / 2, r.y + r.h - 0.05, (r.z0 + r.z1) / 2);
+    lid.castShadow = true;
+    lid.receiveShadow = false;
+    lid.renderOrder = -1;
+    lid.userData.ceiling = true;              // so the shadow trim leaves it be
+    group.add(lid);
+  }
 }

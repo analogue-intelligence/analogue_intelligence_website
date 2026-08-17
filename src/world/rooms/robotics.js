@@ -1,11 +1,15 @@
 import * as THREE from 'three';
-import { M, box, cyl, lathe, paint, surface, decal, screenMaterial, textPlate } from '../materials.js';
+import { M, box, cyl, lathe, paint, surface, decal, screenMaterial, textPlate , FLOOR } from '../materials.js';
 import {
   workbench, pegboard, shelfUnit, crate, monitor, stool, plant, plaque,
 } from '../props.js';
 
 // -----------------------------------------------------------------------------
-// rooms/robotics.js — where intelligence is given a body.
+// rooms/robotics.js — the robotics area, where intelligence is given a body.
+//
+// No longer a room of its own: it shares the Research Lab with the studio, and
+// takes its centre from the caller so the two areas can be laid out side by
+// side without either file knowing where the other one is.
 //
 // Cooler light than the rest of the building, a concrete floor, and everything
 // either bolted down or in a crate. The three set pieces — arm, quadruped,
@@ -13,14 +17,14 @@ import {
 // working lab look like one.
 // -----------------------------------------------------------------------------
 
-export function buildRobotics(ctx) {
-  const CX = -27;             // room centre x
+export function buildRobotics(ctx, centreX = -27) {
+  const CX = centreX;         // centre of the robotics *area*, not the room
 
   // safety markings on the concrete
   const hazard = decal(9, 9, new THREE.MeshStandardMaterial({
     map: hazardTexture(), transparent: true, roughness: 1,
   }), 0.02);
-  ctx.add(hazard, CX, 0.02, 0.5);
+  ctx.add(hazard, CX, FLOOR.marking, 0.5);
 
   // ------------------------------------------------------------ robot arm --
   const arm = buildArm(ctx);
@@ -42,7 +46,7 @@ export function buildRobotics(ctx) {
   ctx.collide(CX + 6.5, 7, 1.6, 1.1, 0);
   ctx.interact('rb_quadruped', dog, ctx.anchor(CX + 6.5, 1.8, 7));
   // charging pad
-  ctx.add(decal(2.4, 1.8, paint('#3a4048'), 0.03), CX + 6.5, 0.03, 7);
+  ctx.add(decal(2.4, 1.8, paint('#3a4048'), FLOOR.marking), CX + 6.5, FLOOR.marking, 7);
 
   // ----------------------------------------------------------- flight cage --
   const cage = buildFlightCage(ctx);
@@ -70,12 +74,16 @@ export function buildRobotics(ctx) {
   ctx.add(scopeFace, CX + 3.5, 1.44, -9.33);
 
   // ------------------------------------------------------------- storage ---
+  // These three units used to line the west wall of the robotics room. That
+  // wall is gone — the studio is on the other side of it now — so standing them
+  // in the same place left a row of shelving marooned in the middle of an open
+  // floor. They are against the north wall instead, where shelving belongs.
   for (let i = 0; i < 3; i++) {
-    ctx.add(shelfUnit(2.4, 2.4), CX - 9.4, 0, -1 + i * 3.2, Math.PI / 2);
-    ctx.collide(CX - 9.4, -1 + i * 3.2, 0.9, 2.4, 0);
+    ctx.add(shelfUnit(2.4, 2.4), CX - 6.6 + i * 2.7, 0, -10.6, 0);
+    ctx.collide(CX - 6.6 + i * 2.7, -10.6, 2.4, 0.9, 0);
     for (let k = 0; k < 3; k++) {
       const bin = box(0.7, 0.4, 0.6, paint(['#4f6472', '#7a5638', '#5e6b3e'][k % 3]));
-      ctx.add(bin, CX - 9.4, 0.5 + k, -1.7 + i * 3.2 + k * 0.5, 0);
+      ctx.add(bin, CX - 7.2 + i * 2.7 + k * 0.5, 0.5 + k, -10.6, 0);
     }
   }
   ctx.add(crate(1.2), CX + 8.4, 0, 3.5, 0.3);
@@ -92,7 +100,7 @@ export function buildRobotics(ctx) {
     led.position.set(-0.9 + (i % 4) * 0.6, 0.3 - Math.floor(i / 4) * 0.55, 0.32);
     rack.add(led); leds.push(led);
   }
-  ctx.add(rack, CX - 9.2, 2.4, 8.6, Math.PI / 2);
+  ctx.add(rack, CX - 10.4, 2.4, 8.6, Math.PI / 2);
   ctx.tick(() => {
     const t = performance.now() * 0.002;
     leds.forEach((l, i) => { l.material.emissiveIntensity = 1 + Math.sin(t + i * 0.8) * 1.1; });

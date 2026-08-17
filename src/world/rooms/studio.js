@@ -1,21 +1,23 @@
 import * as THREE from 'three';
-import { M, box, cyl, lathe, paint, surface, decal, screenMaterial } from '../materials.js';
+import { M, box, cyl, lathe, paint, surface, decal, screenMaterial , FLOOR } from '../materials.js';
+import { QUALITY } from '../../core/quality.js';
 import {
   table, chair, stool, plant, hangingPlant, pendant, framedArt, monitor, crate, plaque, rug,
 } from '../props.js';
 
 // -----------------------------------------------------------------------------
-// rooms/studio.js — the creative studio.
+// rooms/studio.js — the studio area of the Research Lab.
 //
-// The warmest and most cluttered room in the building. Where the robotics lab is
-// gridded and bolted down, this one is diagonal: nothing quite square to the
+// The warmest and most cluttered part of the building. Where the robotics bays
+// are gridded and bolted down, this end is diagonal: nothing quite square to the
 // walls, paper on every surface, and one wall given over entirely to screens.
+// They face each other across an open floor on purpose.
 // -----------------------------------------------------------------------------
 
-export function buildStudio(ctx) {
-  const CX = 27;
+export function buildStudio(ctx, centreX = -49) {
+  const CX = centreX;         // centre of the studio *area*, not the room
 
-  ctx.add(rug(9, 7, [1, 1]), CX, 0.02, 2);
+  ctx.add(rug(9, 7, [1, 1]), CX, FLOOR.rug, 2);
 
   // ------------------------------------------------------------- plotter ---
   const plotter = buildPlotter(ctx);
@@ -98,8 +100,10 @@ export function buildStudio(ctx) {
 
   // ------------------------------------------------------------ dressing ---
   // a paint-spattered supply table
-  ctx.add(table(2.4, 1.2, 1.0, '#6a4a2c'), CX + 7.6, 0, -1.5, -0.3);
-  ctx.collide(CX + 7.6, -1.5, 2.4, 1.4, 0);
+  // Also pulled off the old wall line and back against the north wall, for the
+  // same reason: the room is open there now.
+  ctx.add(table(2.4, 1.2, 1.0, '#6a4a2c'), CX + 6.2, 0, -9.8, -0.12);
+  ctx.collide(CX + 6.2, -9.8, 2.4, 1.4, 0);
   for (let i = 0; i < 9; i++) {
     const jar = lathe([[0, 0], [0.09, 0], [0.1, 0.24], [0.07, 0.28]],
       paint(palette[i % palette.length], { roughness: 0.5 }), 10);
@@ -156,19 +160,37 @@ function buildPlotter(ctx) {
   gantry.position.y = 1.35;
   g.add(gantry);
 
-  let t = Math.random() * 10, px = 0, py = 0;
-  ctx.tick((dt) => {
+  let t = Math.random() * 10, px = 0, py = 0, upload = 0;
+  // Where this plotter ends up is decided by the caller, so ask the object
+  // itself once it has been placed rather than guessing from a room centre.
+  const HOME = new THREE.Vector3();
+  let homed = false;
+  ctx.tick((dt, playerPos) => {
+    if (!homed) { g.updateWorldMatrix(true, false); g.getWorldPosition(HOME); homed = true; }
     t += dt;
     const u = (Math.sin(t * 0.5) * 0.5 + 0.5);
     const v = (Math.sin(t * 0.31 + 1.2) * 0.5 + 0.5);
     gantry.position.z = -0.85 + v * 1.7;
     head.position.x = -1.1 + u * 2.2;
+
+    // The pen keeps drawing, but the *canvas* only goes to the GPU when there
+    // is somebody to see it, and then only about twelve times a second.
+    // Re-uploading a 512x330 texture every frame — from anywhere in the
+    // building, including three rooms away — was tens of megabytes a second of
+    // transfer and the single biggest cause of dropped frames.
     const nx = u * 512, ny = v * 330;
     cg.strokeStyle = 'rgba(30,40,48,0.8)'; cg.lineWidth = 1.6;
     cg.beginPath(); cg.moveTo(px, py); cg.lineTo(nx, ny); cg.stroke();
     px = nx; py = ny;
     if (t % 26 < dt) { cg.fillStyle = '#f2ecda'; cg.fillRect(0, 0, 512, 330); }
-    drawTex.needsUpdate = true;
+
+    upload -= dt;
+    if (upload <= 0 && playerPos && playerPos.distanceToSquared(HOME) < 900) {
+      drawTex.needsUpdate = true;
+      // 20fps at medium and 28 at high — fast enough that the pen looks like it
+      // is drawing rather than stamping, without going back to every frame.
+      upload = QUALITY.liveTex;
+    }
   });
   return g;
 }

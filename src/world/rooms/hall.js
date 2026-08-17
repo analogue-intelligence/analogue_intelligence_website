@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import { M, box, cyl, lathe, paint, surface, decal, textPlate } from '../materials.js';
+import { M, box, cyl, lathe, paint, surface, decal, textPlate , FLOOR } from '../materials.js';
 import {
-  plinth, exhibitSpot, pendant, framedArt, plant, bookshelf, chair,
+  plinth, exhibitSpot, pendant, framedArt, plant, bookshelf, chair, rug, stool, hangingPlant
 } from '../props.js';
 
 // -----------------------------------------------------------------------------
@@ -15,19 +15,41 @@ import {
 
 export function buildHall(ctx) {
   // ------------------------------------------------------------- surfaces --
-  const runner = decal(6, 20, M.rug([1, 3]), 0.03);
-  ctx.add(runner, 0, 0.03, 0.5);
+  // A six-by-twenty runner straight down the centre with an inlaid medallion
+  // where the aisles crossed made this room read as a banquet hall — a formal
+  // axis, seating either side, and an implied top table. The projects are the
+  // point, not the procession. Rugs are scattered and off-axis instead, in the
+  // same palette as the Research Lab so the two rooms belong together.
+  const RUGS = [[-6.5, -6.5, 5.5, 4.2], [5.5, -2.0, 5.0, 4.0],
+    [-4.0, 5.5, 6.0, 4.4], [8.0, 6.5, 4.2, 3.4]];
+  for (const [x, z, w, d] of RUGS) ctx.add(rug(w, d, [1, 1]), x, FLOOR.rug, z);
 
-  // a compass medallion inlaid where the aisles cross
-  const medallion = new THREE.Mesh(
-    new THREE.CircleGeometry(3.2, 32),
-    new THREE.MeshStandardMaterial({ map: medallionTexture(), roughness: 0.7 }));
-  medallion.rotation.x = -Math.PI / 2;
-  ctx.add(medallion, 0, 0.045, 0.5);
+  // paint on the floor, exactly as in the lab — the strongest single signal
+  // that these rooms are one practice rather than a gallery and a workshop
+  const SPLASH = ['#e0673c', '#e8b23c', '#4f9d93', '#8a5aa8', '#5e8a4a', '#d8547e'];
+  for (let i = 0; i < 16; i++) {
+    const blob = decal(0.6 + (i % 4) * 0.28, 0.5 + (i % 3) * 0.3,
+      new THREE.MeshStandardMaterial({
+        color: SPLASH[i % SPLASH.length], roughness: 0.85,
+        transparent: true, opacity: 0.5,
+      }), FLOOR.stain);
+    ctx.add(blob, -14 + (i * 29) % 29, FLOOR.stain, -10 + (i * 17) % 21, i * 0.6);
+  }
+
+  // a colour-block frieze across the back wall, the group's own mark, matching
+  // the mural that runs the length of the lab
+  const FRIEZE = [['#c94f3c', '#e8a03c'], ['#3c7d93', '#8fc4c0'],
+    ['#8a5aa8', '#d8a2c8'], ['#5e8a4a', '#c6d86f'], ['#d8547e', '#f0b0a8']];
+  FRIEZE.forEach(([outer, inner], i) => {
+    const x = -12 + i * 6;
+    ctx.add(box(5.0, 3.4, 0.08, paint(outer)), x, 5.0, -11.2);
+    ctx.add(box(3.2, 2.2, 0.09, paint(inner)), x, 5.0, -11.15);
+    ctx.add(box(1.5, 1.0, 0.1, paint(outer)), x, 5.0, -11.1);
+  });
 
   // ---------------------------------------------------------------- light --
   for (const z of [-6, 1, 8]) {
-    ctx.add(pendant('#c9a24a', 2.4, 0.85), 0, 5.6, z);
+    ctx.add(pendant(['#e0673c', '#4f9d93', '#e8b23c'][[-6, 1, 8].indexOf(z)], 2.4, 0.85), 0, 5.6, z);
     ctx.lamp(0xffdca8, 0, 5.1, z, { intensity: 26, distance: 22, size: 5.4, opacity: 0.4 });
     // the beam the pendant hangs from — the only ceiling in the building
     ctx.add(box(30, 0.3, 0.5, M.wood('#3f2f20', [6, 1])), 0, 7.9, z);
@@ -63,18 +85,35 @@ export function buildHall(ctx) {
   ctx.add(exhibitSpot(0xffd9a0), 0, 7.4, -9);
 
   // ------------------------------------------------------------ dressing ---
-  // seating down the middle of the aisle, facing the exhibits
-  for (const z of [-3, 4]) {
-    const bench = box(3.2, 0.42, 1.1, M.wood('#5d4128', [2, 1]));
-    ctx.add(bench, -2.4, 0.6, z);
-    for (const sx of [-1, 1]) ctx.add(box(0.16, 0.6, 0.9, M.wood('#3f2f20')), -2.4 + sx * 1.4, 0.3, z);
-    ctx.collide(-2.4, z, 3.2, 1.1, 0);
+  // Seating, but not two matched benches facing down a centre aisle. Bright,
+  // unmatched, angled, and pushed off the axis — the way seating accumulates in
+  // a working building rather than the way it is installed in a hall.
+  const SEATS = [[-5.6, -8.4, '#c94f3c', 0.4], [3.4, -8.8, '#3c7d93', -0.3],
+    [-6.2, 8.6, '#e8b23c', -0.5], [4.6, 9.0, '#5e8a4a', 0.35]];
+  for (const [x, z, tint, rot] of SEATS) {
+    const bench = box(2.6, 0.42, 1.0, paint(tint));
+    ctx.add(bench, x, 0.6, z, rot);
+    for (const sx of [-1, 1]) {
+      ctx.add(box(0.16, 0.6, 0.85, M.wood('#3f2f20')),
+        x + sx * 1.1 * Math.cos(rot), 0.3, z - sx * 1.1 * Math.sin(rot), rot);
+    }
+    ctx.collide(x, z, 2.8, 1.2, 0);
   }
+  for (const [x, z, t] of [[-8.6, 0.5, '#8a5aa8'], [9.2, -6.4, '#d8547e'],
+    [8.8, 2.2, '#e0673c']]) {
+    ctx.add(stool(0.82, t), x, 0, z, x * 0.3);
+  }
+
+  for (const [x, z, sc] of [[-14.6, 9.6, 1.4], [14.4, 9.4, 1.2], [-14.4, -9.6, 1.3],
+    [13.6, -9.2, 1.15], [-0.5, 10.4, 1.5]]) {
+    ctx.add(plant(sc), x, 0, z);
+  }
+  for (const [x, z] of [[-9, 6], [8, -3]]) ctx.add(hangingPlant(1.0), x, 6.3, z);
 
   // framed plates along the far (west) wall
   const titles = ['field study', 'ablation', 'first flight', 'the rig'];
   titles.forEach((t, i) => {
-    const art = framedArt(1.5, 1.15, ['#6b7a5e', '#7a5638', '#4f6472', '#7a5a68'][i]);
+    const art = framedArt(1.5, 1.15, ['#5e8a4a', '#e0673c', '#3c7d93', '#8a5aa8'][i]);
     ctx.add(art, -15.6, 4.2, -8 + i * 5.2, Math.PI / 2);
   });
 
@@ -313,7 +352,10 @@ function makeDust(ctx) {
     color: 0xffeccc, size: 0.055, transparent: true, opacity: 0.4,
     depthWrite: false, blending: THREE.AdditiveBlending,
   }));
-  const tick = (dt) => {
+  const HOME_PT = new THREE.Vector3(0, 3, 0);
+  const tick = (dt, playerPos) => {
+    // no point animating motes nobody is in the room to see
+    if (playerPos && playerPos.distanceToSquared(HOME_PT) > 1200) return;
     const a = geo.attributes.position.array;
     for (let i = 0; i < N; i++) {
       a[i * 3 + 1] += vel[i] * dt;

@@ -23,6 +23,12 @@ export const HAIR_STYLE = [
   { id: 'shaved', label: 'Shaved' },
 ];
 
+// The blush marks are the entire face, so their colour is a real decision
+// rather than a detail. Warm through cool, all readable against every skin tone.
+export const BLUSH = [
+  '#d66a5e', '#e0885c', '#d4576f', '#b8607e', '#a86a9a', '#6f8fb0', '#5f9a84', '#8a6b52',
+];
+
 export const COAT = [
   '#a8452f', '#3e6b62', '#4f6472', '#6b4a78', '#c9822f',
   '#5e6b3e', '#8a5638', '#2f3439', '#9a5a86', '#c9a24a',
@@ -54,6 +60,7 @@ export const DEFAULT_APPEARANCE = {
   coat: COAT[0],
   trousers: TROUSERS[0],
   accessory: 'none',
+  blush: BLUSH[0],
   build: 'regular',
   height: 1.0,          // 0.88 – 1.12
 };

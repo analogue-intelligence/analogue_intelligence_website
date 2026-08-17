@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { M, PALETTE, box, paint, glow } from './materials.js';
+import { M, PALETTE, box, paint, glow , FLOOR } from './materials.js';
 import { plant, hangingPlant } from './props.js';
 
 // -----------------------------------------------------------------------------
@@ -22,8 +22,10 @@ import { plant, hangingPlant } from './props.js';
 // -----------------------------------------------------------------------------
 
 const GLASS = {
+  lab: ['#5fa8c9', '#8fc7d8', '#e8dcc0', '#c9d86f'],
+  classroom: ['#8fc7a8', '#e8dcc0', '#c9d86f', '#9ec8e0'],
   studio: ['#e8894a', '#e8c14a', '#c05a86', '#6fb0a8', '#e8dcc0'],
-  robotics: ['#5fa8c9', '#8fc7d8', '#e8dcc0', '#c9d86f'],
+  partners: ['#e8c14a', '#b08d46', '#e8dcc0', '#c9a86f'],
   library: ['#c96f4a', '#e8b44a', '#8a6fc9', '#e8dcc0'],
   lobby: ['#e8a84a', '#d86f5a', '#e8dcc0', '#8fc9a8'],
   hall: ['#e8c14a', '#e8dcc0', '#d89a5a'],
@@ -36,20 +38,33 @@ const GLASS = {
  * ones — are worth glazing, since the others fade out under the cutaway.
  */
 export const WINDOWS = [
-  // studio: the big north light an art room would actually be built around
-  { room: 'studio', axis: 'x', at: 16.3, along: -6.5, w: 5.0, h: 5.2, sill: 1.6,
-    inward: [1, 0], cut: true },   // interior partition: fades with its wall
-  { room: 'studio', axis: 'z', at: -11.2, along: 24, w: 6.0, h: 5.6, sill: 1.4, inward: [0, 1] },
-  { room: 'studio', axis: 'z', at: -11.2, along: 33, w: 4.0, h: 4.4, sill: 2.0, inward: [0, 1] },
-  // robotics: high industrial glazing, cooler glass
-  { room: 'robotics', axis: 'x', at: -37.7, along: 4, w: 5.5, h: 4.6, sill: 2.4, inward: [1, 0] },
-  { room: 'robotics', axis: 'z', at: -11.2, along: -30, w: 4.6, h: 4.4, sill: 2.0, inward: [0, 1] },
-  // library: a rose window over the stacks
+  // studio end of the lab: the big north light an art room is built around
+  { room: 'lab', axis: 'x', at: -59.7, along: -4, w: 5.6, h: 5.6, sill: 1.4, inward: [1, 0],
+    glass: 'studio' },
+  { room: 'lab', axis: 'z', at: -11.2, along: -54, w: 6.0, h: 5.6, sill: 1.4, inward: [0, 1],
+    glass: 'studio' },
+  { room: 'lab', axis: 'z', at: -11.2, along: -44, w: 4.4, h: 4.6, sill: 1.9, inward: [0, 1],
+    glass: 'studio' },
+  // robotics end: cooler, higher, more industrial
+  { room: 'lab', axis: 'z', at: -11.2, along: -30, w: 4.6, h: 4.4, sill: 2.2, inward: [0, 1] },
+  { room: 'lab', axis: 'z', at: -11.2, along: -20, w: 4.6, h: 4.4, sill: 2.2, inward: [0, 1] },
+  // library: a pair over the stacks
   { room: 'library', axis: 'z', at: -29.7, along: -8, w: 5.4, h: 5.0, sill: 1.8, inward: [0, 1] },
   { room: 'library', axis: 'z', at: -29.7, along: 6, w: 5.4, h: 5.0, sill: 1.8, inward: [0, 1] },
   // lobby: morning light over the coffee bar
-  { room: 'lobby', axis: 'x', at: -11.7, along: 19, w: 4.6, h: 4.6, sill: 1.5, inward: [1, 0] },
-  // hall: no ceiling, so this one is simply the sun coming in from overhead
+  // Moved south along the wall. The classroom door was added at z = 21 on this
+  // same wall, and this window spanned 16.7 to 21.3 — so the stained glass was
+  // drawn straight across the doorway and you could not see the way through.
+  { room: 'lobby', axis: 'x', at: -11.7, along: 15.4, w: 4.2, h: 4.6, sill: 1.5, inward: [1, 0] },
+  // the classroom gets its own daylight, on the wall the cutaway keeps
+  { room: 'classroom', axis: 'x', at: -37.7, along: 26.4, w: 4.6, h: 4.8, sill: 1.6,
+    inward: [1, 0], glass: 'lab' },
+  { room: 'classroom', axis: 'z', at: 29.7, along: -20, w: 5.0, h: 4.4, sill: 1.9,
+    inward: [0, -1] },
+  // partners room: warm and deliberately generous
+  { room: 'partners', axis: 'z', at: -11.2, along: 24, w: 6.0, h: 5.4, sill: 1.5, inward: [0, 1] },
+  { room: 'partners', axis: 'z', at: -11.2, along: 33, w: 4.0, h: 4.4, sill: 2.0, inward: [0, 1] },
+  // hall: no ceiling, so this is simply the sun coming in from overhead
   { room: 'hall', axis: 'sky', along: 0, at: 0, w: 9, h: 16, sill: 0, inward: [0, 0] },
   { room: 'hall', axis: 'sky', along: -9, at: 6, w: 6, h: 10, sill: 0, inward: [0, 0] },
 ];
@@ -149,14 +164,14 @@ function poolTexture(colors, seed = 0) {
  * tick that drifts the pool. `roomY` is the floor height of the room.
  */
 export function buildWindow(spec, roomY = 0, index = 0, cutaway = null) {
-  const colors = GLASS[spec.room] ?? GLASS.hall;
+  const colors = GLASS[spec.glass ?? spec.room] ?? GLASS.hall;
   const group = new THREE.Group();
   const ticks = [];
 
   if (spec.axis === 'sky') {
     // No glazing — the hall has no ceiling, so this is simply open sky above.
     const pool = sunPool(colors, spec.w, spec.h, index);
-    pool.position.set(spec.at, roomY + 0.035, spec.along);
+    pool.position.set(spec.at, roomY + FLOOR.light, spec.along);
     pool.rotation.z = 0.22;
     group.add(pool);
     ticks.push(driftPool(pool, index, 1.0));
@@ -209,7 +224,7 @@ export function buildWindow(spec, roomY = 0, index = 0, cutaway = null) {
   }
 
   // --- a soft haze in front of the glass, the shaft of light itself ---
-  const haze = glow(colors[0], Math.max(spec.w, spec.h) * 1.15, 0.16);
+  const haze = glow(colors[0], Math.max(spec.w, spec.h) * 1.05, 0.075);
   haze.position.set(
     cx + spec.inward[0] * 0.9, cy - 0.4, cz + spec.inward[1] * 0.9);
   group.add(haze);
@@ -219,7 +234,7 @@ export function buildWindow(spec, roomY = 0, index = 0, cutaway = null) {
   const reach = 2.6 + spec.sill * 0.8;
   pool.position.set(
     cx + spec.inward[0] * reach,
-    roomY + 0.035,
+    roomY + FLOOR.light,
     cz + spec.inward[1] * reach);
   pool.rotation.z = horizontal ? 0.12 : Math.PI / 2 + 0.12;
   group.add(pool);
@@ -248,7 +263,7 @@ function sunPool(colors, w, d, seed) {
   const mat = new THREE.MeshBasicMaterial({
     map: poolTexture(colors, seed),
     transparent: true,
-    opacity: 0.5,
+    opacity: 0.3,
     depthWrite: false,
     blending: THREE.AdditiveBlending,
     fog: false,
@@ -270,7 +285,7 @@ function driftPool(pool, seed, strength) {
     pool.position.x = ox + Math.sin(t * 0.32 + phase) * 0.20 * strength;
     pool.position.z = oz + Math.cos(t * 0.24 + phase * 1.3) * 0.16 * strength;
     pool.material.opacity =
-      (0.44 + Math.sin(t * 0.5 + phase) * 0.06 + Math.sin(t * 1.7 + phase) * 0.03) * strength;
+      (0.26 + Math.sin(t * 0.5 + phase) * 0.04 + Math.sin(t * 1.7 + phase) * 0.02) * strength;
     pool.scale.setScalar(1 + Math.sin(t * 0.21 + phase) * 0.03);
   };
 }

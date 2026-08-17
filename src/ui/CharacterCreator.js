@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { buildFigure } from '../character/figure.js';
 import {
-  SKIN, HAIR_COLOR, HAIR_STYLE, COAT, BUILD,
+  SKIN, HAIR_COLOR, HAIR_STYLE, COAT, BUILD, BLUSH,
   DEFAULT_APPEARANCE, loadAppearance, saveAppearance, trousersFor,
 } from '../character/appearance.js';
 
@@ -46,6 +46,7 @@ export class CharacterCreator {
           <div class="creator-group" data-group="skin"><span class="creator-label">Skin</span><div class="swatches"></div></div>
           <div class="creator-group" data-group="hairStyle"><span class="creator-label">Hair</span><div class="chips"></div></div>
           <div class="creator-group" data-group="hairColor"><span class="creator-label">Hair colour</span><div class="swatches"></div></div>
+          <div class="creator-group" data-group="blush"><span class="creator-label">Blush</span><div class="swatches"></div></div>
           <div class="creator-group" data-group="coat"><span class="creator-label">Coat</span><div class="swatches"></div></div>
           <div class="creator-group" data-group="build"><span class="creator-label">Build</span><div class="chips"></div></div>
 
@@ -107,7 +108,7 @@ export class CharacterCreator {
   }
 
   _rebuild() {
-    if (!this.renderer) return;
+    if (!this.renderer || !this.turntable) return;
     if (this._figure) this.turntable.remove(this._figure.group);
     this._figure = buildFigure(this.appearance);
     this.turntable.add(this._figure.group);
@@ -151,6 +152,7 @@ export class CharacterCreator {
 
     swatch('skin', SKIN);
     swatch('hairColor', HAIR_COLOR);
+    swatch('blush', BLUSH);
     swatch('coat', COAT);
     chips('hairStyle', HAIR_STYLE);
     chips('build', BUILD);
@@ -201,6 +203,7 @@ export class CharacterCreator {
       skin: pick(SKIN),
       hairStyle: pick(HAIR_STYLE).id,
       hairColor: pick(HAIR_COLOR),
+      blush: pick(BLUSH),
       coat,
       trousers: trousersFor(coat),
       accessory: 'none',
@@ -223,14 +226,22 @@ export class CharacterCreator {
 
   // ------------------------------------------------------------- lifecycle --
   open() {
-    if (!this.renderer) this._initPreview();
+    // Whatever happens in here, the panel must end up on screen — the caller
+    // has already disabled input on our behalf and is relying on onDone() to
+    // give it back.
+    try {
+      if (!this.renderer) this._initPreview();
+      this._resizePreview();
+    } catch (e) {
+      console.warn('[creator] preview unavailable, continuing without it:', e);
+    }
     this.el.classList.add('on');
     this._sync();
     this._rebuild();
     requestAnimationFrame(() => this._resizePreview());
     const loop = () => {
       this._raf = requestAnimationFrame(loop);
-      if (!this.renderer) return;
+      if (!this.renderer || !this.el.classList.contains('on')) return;
       const dt = 0.016;
       this.spinVel *= 0.94;
       this.spin += this.spinVel * dt * 6;
@@ -246,26 +257,29 @@ export class CharacterCreator {
     this.el.classList.remove('on');
     cancelAnimationFrame(this._raf);
     this._raf = null;
-    // Hand the GPU back its second context. Browsers allow only a handful of
-    // live WebGL contexts, and leaving this one running alongside the building
-    // was costing a full render target and its own draw loop for a preview
-    // nobody can see any more.
-    setTimeout(() => this.dispose(), 500);
+    // The loop stops; the context stays.
+    //
+    // This used to call forceContextLoss() to hand the GPU back its second
+    // context — and a canvas whose context has been force-lost can never get
+    // another one. So the second time you pressed C the preview came back
+    // white, _initPreview() threw, open() never finished, and because the key
+    // handler had already disabled input to open the panel, the whole page
+    // stopped responding. One dispose, two bugs.
+    //
+    // An idle context costs almost nothing; a draw loop is what costs, and that
+    // is what we stop.
     this.onDone({ ...this.appearance });
   }
 
+  /** Drop only the figure. The renderer is kept so the canvas stays usable. */
   dispose() {
-    if (!this.renderer) return;
-    if (this._figure) {
+    if (this._figure && this.turntable) {
+      this.turntable.remove(this._figure.group);
       this._figure.group.traverse((o) => {
         if (!o.isMesh) return;
         o.geometry?.dispose?.();
-        for (const m of [].concat(o.material)) { m?.map?.dispose?.(); m?.dispose?.(); }
       });
+      this._figure = null;
     }
-    this.renderer.dispose();
-    this.renderer.forceContextLoss?.();
-    this.renderer = null;
-    this._figure = null;
   }
 }

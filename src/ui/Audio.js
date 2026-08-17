@@ -145,6 +145,28 @@ export class Audio {
     osc.start(now); osc.stop(now + 0.42);
   }
 
+  /**
+   * The achievement. A rising third then a fifth, on the triangle voice with a
+   * soft attack — deliberately unlike the discovery chime, which is a single
+   * bell and fires far more often.
+   */
+  achievement() {
+    if (!this.ready || this.muted) return;
+    const now = this.ctx.currentTime;
+    [[0, 587.33], [0.085, 739.99], [0.17, 880.0], [0.30, 1174.66]].forEach(([at, f], i) => {
+      const osc = this.ctx.createOscillator();
+      osc.type = i === 3 ? 'sine' : 'triangle';
+      osc.frequency.value = f;
+      const g = this.ctx.createGain();
+      const t0 = now + at;
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.linearRampToValueAtTime(i === 3 ? 0.07 : 0.055, t0 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + (i === 3 ? 1.1 : 0.42));
+      osc.connect(g).connect(this.master);
+      osc.start(t0); osc.stop(t0 + 1.2);
+    });
+  }
+
   // ---- names the newer interface calls, mapped onto the original voices ----
   discover() { this.chime(7); }
   open() { this.click(); }

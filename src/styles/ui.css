@@ -44,7 +44,7 @@ html, body {
    underneath it. Each layer below declares its own behaviour instead. */
 .label-layer { position: fixed; inset: 0; pointer-events: none; z-index: 8; }
 .hud { z-index: 10; }
-.minimap { z-index: 12; pointer-events: none; }
+.minimap { z-index: 12; pointer-events: auto; }
 .room-card { z-index: 14; pointer-events: none; }
 .dlg-wrap { z-index: 20; }
 .modal-wrap { z-index: 30; }
@@ -82,14 +82,29 @@ button, input { font: inherit; color: inherit; }
 }
 .obj-tag { font-family: var(--display); font-size: 13px; font-weight: 700; color: var(--bone); }
 .obj-key {
-  display: none;
-  margin-top: 3px; padding: 1px 6px 2px;
+  margin-top: 4px; padding: 2px 7px 3px;
   font-family: var(--mono); font-size: 9px; letter-spacing: 0.1em;
   border: 1px solid var(--bone-faint); border-radius: 2px;
   color: var(--bone-dim);
 }
-.obj-label.is-nearest .obj-key { display: block; }
-.obj-label.is-nearest { border-color: var(--accent); }
+/* the nearest chip offers the key; every other live chip offers the click */
+.obj-key .k-e, .obj-key .k-c { font-style: normal; }
+.obj-key .k-e { display: none; }
+.obj-label.is-nearest .obj-key .k-e { display: inline; }
+.obj-label.is-nearest .obj-key .k-c { display: none; }
+.obj-label.is-nearest {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.obj-label.is-nearest .obj-key { color: var(--accent); border-color: var(--accent); }
+
+/* and they should feel like buttons, because they are */
+.obj-label:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+}
+.obj-label:hover .obj-key { color: var(--bone); border-color: var(--bone-dim); }
+.obj-label:active { transform-origin: center bottom; filter: brightness(1.15); }
 .obj-label.pop { animation: pop 260ms cubic-bezier(.2,1.4,.4,1); }
 @keyframes pop {
   from { transform: translate(-50%, -120%) translate(var(--x,0), var(--y,0)) scale(0.88); }
@@ -101,32 +116,54 @@ button, input { font: inherit; color: inherit; }
 .hud.hidden { opacity: 0; }
 .hud > * { pointer-events: none; }
 
-.hud-brand { position: absolute; top: 26px; left: 30px; }
+/* The interface sits over whatever the camera happens to be looking at, which
+   outdoors is bright sunlit grass. Cream text on that is invisible. Both
+   corners now carry their own scrim, so legibility no longer depends on what is
+   behind them, and the type is a size up. */
+.hud-brand {
+  position: absolute; top: 22px; left: 22px;
+  padding: 11px 16px 12px;
+  background: rgba(16, 20, 26, 0.62);
+  border: 1px solid rgba(231, 224, 210, 0.13);
+  border-left: 2px solid var(--accent);
+  border-radius: 3px;
+  backdrop-filter: blur(7px);
+}
 .hud-title {
-  font-family: var(--display); font-weight: 800; font-size: 19px;
-  letter-spacing: 0.02em;
+  font-family: var(--display); font-weight: 800; font-size: 22px;
+  letter-spacing: 0.02em; color: #f4eee0;
 }
 .hud-sub {
-  font-family: var(--mono); font-size: 10px; letter-spacing: 0.22em;
-  text-transform: uppercase; color: var(--bone-dim); margin-top: 3px;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.22em;
+  text-transform: uppercase; color: rgba(231, 224, 210, 0.75); margin-top: 4px;
 }
 
-.hud-room { position: absolute; top: 28px; left: 50%; transform: translateX(-50%); }
+.hud-room { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); }
 .hud-room-name {
-  font-family: var(--mono); font-size: 11px; letter-spacing: 0.3em;
-  text-transform: uppercase; color: var(--accent);
-  padding-bottom: 5px; border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  display: inline-block;
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.3em; font-weight: 700;
+  text-transform: uppercase; color: #ffe7ae;
+  padding: 8px 16px 7px;
+  background: rgba(16, 20, 26, 0.62);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  border-radius: 3px;
+  backdrop-filter: blur(7px);
 }
 .hud-room-name.swap { animation: swap 480ms ease-out; }
 @keyframes swap { from { opacity: 0; letter-spacing: 0.5em; } }
 
 .hud-controls {
-  position: absolute; bottom: 26px; left: 30px;
-  display: flex; flex-direction: column; gap: 5px;
-  font-family: var(--mono); font-size: 10px; color: var(--bone-dim);
-  letter-spacing: 0.04em;
+  position: absolute; bottom: 22px; left: 22px;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px 16px;
+  background: rgba(16, 20, 26, 0.62);
+  border: 1px solid rgba(231, 224, 210, 0.13);
+  border-radius: 3px;
+  backdrop-filter: blur(7px);
+  font-family: var(--mono); font-size: 12px; color: rgba(231, 224, 210, 0.78);
+  letter-spacing: 0.03em;
 }
-.hud-controls b { color: var(--bone); font-weight: 400; }
+.hud-controls b { color: #f4eee0; font-weight: 700; }
 .hud-q { font-style: normal; color: var(--accent); }
 .hud-q.flash { animation: qflash 900ms ease-out; }
 @keyframes qflash { from { color: var(--bone); } }
@@ -340,10 +377,17 @@ button, input { font: inherit; color: inherit; }
   opacity: 0; pointer-events: none; transition: opacity 420ms;
 }
 .creator.on { opacity: 1; pointer-events: auto; }
+/* Sized from the viewport in both directions. It was a fixed two-column grid
+   with a 900px target, which on a laptop ran past the bottom of the window and
+   on a phone was simply the wrong shape. `min()` against vw *and* vh means it
+   fits whatever it is opened on. */
 .creator-panel {
-  display: grid; grid-template-columns: minmax(260px, 380px) minmax(300px, 420px);
-  gap: 34px; align-items: stretch;
-  width: min(900px, 92vw); max-height: 88vh;
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(280px, 1.05fr);
+  gap: clamp(16px, 3vw, 32px); align-items: stretch;
+  width: min(880px, 94vw);
+  height: min(620px, 86vh);
+  max-height: 86vh;
 }
 .creator-stage {
   position: relative;
@@ -351,7 +395,7 @@ button, input { font: inherit; color: inherit; }
   background: linear-gradient(180deg, rgba(231,224,210,0.05), rgba(231,224,210,0.01));
   overflow: hidden;
 }
-.creator-canvas { display: block; width: 100%; height: 100%; min-height: 360px; cursor: grab; }
+.creator-canvas { display: block; width: 100%; height: 100%; min-height: 0; cursor: grab; }
 .creator-canvas:active { cursor: grabbing; }
 .creator-turn {
   position: absolute; left: 0; right: 0; bottom: 16px;
@@ -365,14 +409,14 @@ button, input { font: inherit; color: inherit; }
 }
 .creator-turn button:hover { color: var(--bone); border-color: var(--bone-faint); }
 
-.creator-side { overflow-y: auto; padding-right: 8px; }
+.creator-side { overflow-y: auto; padding-right: 8px; min-height: 0; }
 .creator-kicker {
   font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.26em;
   text-transform: uppercase; color: var(--accent);
 }
 .creator-title {
   margin: 8px 0 0; font-family: var(--display); font-weight: 800;
-  font-size: clamp(26px, 3vw, 34px); line-height: 1.05; letter-spacing: -0.015em;
+  font-size: clamp(21px, 2.6vw, 31px); line-height: 1.05; letter-spacing: -0.015em;
 }
 .creator-lede {
   margin: 10px 0 20px; max-width: 42ch;
@@ -440,11 +484,538 @@ button, input { font: inherit; color: inherit; }
 
 /* ------------------------------------------------------------------ small -- */
 @media (max-width: 860px) {
-  .creator-panel { grid-template-columns: 1fr; gap: 18px; max-height: 92vh; }
-  .creator-canvas { min-height: 220px; }
+  .creator-panel {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(150px, 32vh) 1fr;
+    gap: 14px; width: 94vw; height: 88vh;
+  }
+  .creator-canvas { min-height: 0; }
   .creator-lede { display: none; }
+  .creator-stage { min-height: 0; }
   .hud-controls { display: none; }
   .minimap { transform: scale(0.82); transform-origin: bottom right; }
   .modal-wrap { padding: 16px; align-items: flex-end; }
   .modal { width: 100%; max-height: 70vh; }
+}
+
+/* ===========================================================================
+   touch and small screens
+
+   The desktop layout assumes a wide viewport, a hover state and a precise
+   cursor. None of that survives a phone, so the same components change shape:
+   side panels become bottom sheets, tap targets grow to something a thumb can
+   actually hit, and the on-screen controls replace the keyboard entirely.
+   Nothing is removed — every shortcut has a button.
+   ========================================================================= */
+
+.touch-ui { position: fixed; inset: 0; pointer-events: none; z-index: 16; }
+.touch-ui.hidden { opacity: 0; pointer-events: none; }
+
+/* the thumbstick appears where your thumb lands, not in a fixed corner */
+.stick { position: fixed; width: 0; height: 0; pointer-events: none; }
+.stick[hidden] { display: none; }
+.stick-base,
+.stick-nub {
+  position: absolute; left: 0; top: 0;
+  border-radius: 50%; transform: translate(-50%, -50%);
+}
+.stick-base {
+  width: 132px; height: 132px;
+  background: rgba(18, 22, 28, 0.34);
+  border: 1px solid rgba(231, 224, 210, 0.22);
+  backdrop-filter: blur(2px);
+}
+.stick-nub {
+  width: 58px; height: 58px;
+  background: rgba(201, 162, 74, 0.5);
+  border: 1px solid rgba(240, 228, 198, 0.6);
+}
+
+.tbtn {
+  pointer-events: auto;
+  font-family: var(--mono);
+  color: var(--bone);
+  background: rgba(14, 18, 24, 0.82);
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  border-radius: 3px;
+  backdrop-filter: blur(6px);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.tbtn:active { background: color-mix(in srgb, var(--accent) 26%, rgba(14, 18, 24, 0.82)); }
+
+/* the action button: large, thumb-reachable, and it names its target */
+.tbtn-action {
+  position: fixed; right: 18px; bottom: 26px;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 2px;
+  min-width: 132px; max-width: 62vw; padding: 13px 17px;
+  text-align: right;
+}
+.tbtn-action:disabled { opacity: 0.4; border-color: var(--edge); }
+.tbtn-verb {
+  font-size: 9px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--accent);
+}
+.tbtn-action:disabled .tbtn-verb { color: var(--bone-dim); }
+.tbtn-target {
+  font-family: var(--display); font-weight: 700; font-size: 15px; line-height: 1.15;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+
+.tbtn-row {
+  position: fixed; right: 18px; top: 18px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.tbtn-small {
+  width: 44px; height: 44px; font-size: 17px; line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* --- component reshaping, by viewport rather than by device ------------- */
+@media (max-width: 700px) {
+  .hud-brand { top: 14px; left: 16px; }
+  .hud-title { font-size: 15px; }
+  .hud-sub { font-size: 8px; letter-spacing: 0.16em; }
+  .hud-controls { display: none; }              /* replaced by the buttons */
+  .hud-room { top: 16px; left: 16px; transform: none; margin-top: 44px; }
+  .hud-prompt { display: none; }                /* the action button says it */
+
+  .minimap { right: 12px; bottom: 108px; transform: scale(0.72); transform-origin: bottom right; }
+
+  .obj-label { padding: 5px 9px 6px; }
+  .obj-tag { font-size: 11px; }
+  .obj-cat { font-size: 7.5px; }
+
+  /* panels become bottom sheets: reachable, and they do not cover the world */
+  .modal-wrap { padding: 0; align-items: flex-end; justify-content: center; }
+  .modal {
+    width: 100%; max-height: 76vh; padding: 24px 20px 30px;
+    border-radius: 10px 10px 0 0;
+    border-left: 1px solid var(--edge); border-right: 1px solid var(--edge);
+    border-top: 3px solid var(--accent);
+    transform: translateY(26px);
+  }
+  .modal-wrap.on .modal { transform: translateY(0); }
+  .modal::before {
+    content: ''; position: absolute; top: 9px; left: 50%; transform: translateX(-50%);
+    width: 44px; height: 4px; border-radius: 2px; background: rgba(231, 224, 210, 0.26);
+  }
+  .modal-title { font-size: 25px; }
+  .modal-body p { font-size: 14px; }
+  .modal-close { width: 42px; height: 42px; font-size: 24px; }
+  .modal-action { padding: 13px 20px; }
+
+  .dlg-wrap { padding: 0; }
+  .dlg {
+    width: 100%; padding: 20px 18px 24px;
+    border-radius: 10px 10px 0 0;
+    border-left: 1px solid var(--edge); border-top: 3px solid var(--accent);
+  }
+  .dlg-line { font-size: 15.5px; min-height: 4.2em; }
+  .dlg-choice { padding: 13px 14px; font-size: 14px; }
+  .dlg-close { width: 40px; height: 40px; font-size: 22px; }
+
+  .room-card-name { font-size: 30px; }
+  .room-card-blurb { font-size: 9.5px; }
+
+  .intro-title { font-size: clamp(30px, 11vw, 52px); }
+  .intro-sub { font-size: 10px; letter-spacing: 0.3em; }
+  .intro-hint { display: none; }
+  .intro-skip { right: 16px; bottom: 20px; padding: 12px 18px; }
+
+  /* the creator: one column, and the button that leaves is always in reach */
+  .creator { align-items: stretch; }
+  .creator-panel {
+    grid-template-columns: 1fr; gap: 0;
+    width: 100%; max-height: 100%;
+    grid-template-rows: minmax(180px, 34vh) 1fr;
+  }
+  .creator-stage { border: none; border-bottom: 1px solid var(--edge); border-radius: 0; }
+  .creator-canvas { min-height: 0; height: 100%; }
+  .creator-side { padding: 18px 18px 0; overflow-y: auto; }
+  .creator-kicker { font-size: 8.5px; }
+  .creator-title { font-size: 24px; }
+  .creator-lede { display: none; }
+  .swatch { width: 36px; height: 36px; }
+  .chip { padding: 10px 14px; font-size: 13px; }
+  .creator-actions {
+    position: sticky; bottom: 0; margin: 18px -18px 0; padding: 12px 18px 16px;
+    background: linear-gradient(180deg, rgba(12, 15, 20, 0), #0c0f14 22%);
+  }
+  .creator-go, .creator-random { padding: 15px 18px; }
+}
+
+/* On a touch device the label chips are informational only — the action button
+   is what you press — so they must never eat a tap meant for the world. */
+body.is-touch .obj-label { pointer-events: none !important; }
+body.is-touch #scene { touch-action: none; }
+body.is-touch { overscroll-behavior: none; }
+
+/* Landscape phones are short rather than narrow: keep the sheets shallow. */
+@media (max-height: 480px) and (pointer: coarse) {
+  .modal { max-height: 88vh; padding-top: 20px; }
+  .dlg-line { min-height: 2.6em; }
+  .creator-panel { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
+  .creator-actions { position: static; margin: 14px 0 0; background: none; }
+}
+
+/* --- the performance readout (F) ---------------------------------------- */
+.stats {
+  position: fixed; top: 16px; right: 16px; z-index: 18;
+  width: 260px; padding: 12px 14px 10px;
+  background: rgba(12, 16, 21, 0.9);
+  border: 1px solid var(--edge); border-radius: 3px;
+  backdrop-filter: blur(6px);
+  font-family: var(--mono); font-size: 10.5px; line-height: 1.5;
+  color: var(--bone-dim);
+  pointer-events: none;
+}
+.stats.hidden { display: none; }
+.stats-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 9px; }
+.stats-row b { font-size: 19px; font-family: var(--display); }
+.stats-row span { font-size: 9px; }
+.stats-good b { color: #7fc98a; }
+.stats-fair b { color: #e0b45a; }
+.stats-poor b { color: #e07a62; }
+.stats-grid {
+  display: grid; grid-template-columns: 1fr auto; gap: 1px 10px;
+  padding: 8px 0; border-top: 1px solid var(--edge); border-bottom: 1px solid var(--edge);
+}
+.stats-grid b { color: var(--bone); font-weight: 400; text-align: right; }
+.stats-gpu { padding-top: 8px; color: var(--bone); word-break: break-word; }
+.stats-dim { color: var(--bone-faint); font-size: 9px; margin-top: 2px; }
+.stats-hint { margin-top: 7px; font-size: 8.5px; color: var(--bone-faint); letter-spacing: 0.1em; }
+
+@media (max-width: 700px) {
+  .stats { top: auto; bottom: 96px; right: 12px; left: 12px; width: auto; }
+}
+
+/* ===========================================================================
+   the prologue
+   ========================================================================= */
+
+.prologue { position: fixed; inset: 0; pointer-events: none; z-index: 36; opacity: 0; transition: opacity 500ms; }
+.prologue.on { opacity: 1; }
+
+.pro-title {
+  position: absolute; top: 34%; left: 50%; transform: translate(-50%, -50%);
+  text-align: center; opacity: 0; transition: opacity 900ms;
+}
+.pro-title.on { opacity: 1; }
+.pro-title-main {
+  font-family: var(--display); font-weight: 800;
+  font-size: clamp(38px, 7.5vw, 88px); letter-spacing: -0.015em;
+  color: #fdf8ec; text-shadow: 0 6px 44px rgba(28, 34, 48, 0.5);
+}
+.pro-title-sub {
+  margin-top: 10px; font-family: var(--mono); font-size: 12px;
+  letter-spacing: 0.42em; text-transform: uppercase; color: #ffe7ae;
+  text-shadow: 0 2px 18px rgba(28, 34, 48, 0.6);
+}
+
+.pro-panel {
+  position: absolute; top: 50%; left: 46px; transform: translateY(-50%);
+  width: min(430px, 44vw); max-height: 82vh; overflow-y: auto;
+  padding: 22px 22px 18px;
+  background: rgba(16, 20, 26, 0.74);
+  border: 1px solid rgba(231, 224, 210, 0.14);
+  border-left: 2px solid var(--accent);
+  border-radius: 4px; backdrop-filter: blur(10px);
+  opacity: 0; pointer-events: none;
+  transition: opacity 500ms;
+}
+.pro-panel.on { opacity: 1; pointer-events: auto; }
+.pro-kicker {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.26em;
+  text-transform: uppercase; color: var(--accent);
+}
+.pro-heading {
+  margin: 8px 0 18px; font-family: var(--display); font-weight: 800;
+  font-size: 26px; line-height: 1.05; color: #f4eee0;
+}
+
+.ap-group { margin-bottom: 15px; transition: opacity 420ms, transform 420ms; }
+.ap-group.ap-pending { opacity: 0; transform: translateX(-14px); pointer-events: none; }
+.ap-label {
+  display: block; margin-bottom: 7px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: rgba(231, 224, 210, 0.66);
+}
+/* one row per option set: the panel is sized so no swatch strip wraps */
+.ap-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.ap-swatch {
+  width: 26px; height: 26px; min-width: 26px; padding: 0; flex: 0 0 auto;
+  border: 1px solid rgba(231, 224, 210, 0.22); border-radius: 50%;
+  cursor: pointer; transition: transform 140ms, box-shadow 140ms;
+}
+.ap-swatch:hover { transform: scale(1.12); }
+.ap-swatch.on { box-shadow: 0 0 0 2px #10141a, 0 0 0 3px #e7e0d2; }
+.ap-chip {
+  padding: 7px 12px; font-family: var(--ui); font-size: 12.5px;
+  color: rgba(231, 224, 210, 0.72); background: rgba(231, 224, 210, 0.05);
+  border: 1px solid rgba(231, 224, 210, 0.14); border-radius: 2px; cursor: pointer;
+  transition: color 140ms, background 140ms, border-color 140ms;
+}
+.ap-chip:hover { color: #f2ebdc; }
+.ap-chip.on { color: #12161c; background: var(--accent); border-color: var(--accent); }
+.ap-name {
+  width: 100%; padding: 9px 11px;
+  background: rgba(231, 224, 210, 0.06); color: #f2ebdc;
+  border: 1px solid rgba(231, 224, 210, 0.16); border-radius: 2px;
+  font-family: var(--display); font-size: 15px;
+}
+.ap-name:focus { outline: none; border-color: var(--accent); }
+.ap-height { width: 100%; accent-color: var(--accent); }
+
+.pro-actions { display: flex; gap: 8px; margin-top: 18px; opacity: 0; transition: opacity 400ms; }
+.pro-actions.on { opacity: 1; }
+.pro-random, .pro-go {
+  padding: 12px 16px; border-radius: 2px; cursor: pointer;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.12em;
+  transition: background 160ms, color 160ms, border-color 160ms;
+}
+.pro-random {
+  color: rgba(231, 224, 210, 0.7); background: none;
+  border: 1px solid rgba(231, 224, 210, 0.16);
+}
+.pro-random:hover { color: #f2ebdc; }
+.pro-go {
+  flex: 1; color: #12161c; background: var(--accent);
+  border: 1px solid var(--accent); font-weight: 700;
+}
+.pro-go:hover { background: #e0b95c; }
+
+/* a hint that the figure can be turned by dragging */
+.pro-turn {
+  position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em;
+  text-transform: uppercase; color: rgba(255, 255, 255, 0.72);
+  text-shadow: 0 2px 14px rgba(20, 28, 40, 0.7);
+  opacity: 0; transition: opacity 500ms;
+}
+.pro-turn.on { opacity: 1; }
+
+.pro-tut {
+  position: absolute; bottom: 11%; left: 50%; transform: translate(-50%, 12px);
+  padding: 13px 22px;
+  background: rgba(16, 20, 26, 0.74);
+  border: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+  border-radius: 3px; backdrop-filter: blur(8px);
+  font-family: var(--ui); font-size: 15px; color: #f2ebdc;
+  opacity: 0; transition: opacity 420ms, transform 420ms;
+  white-space: nowrap;
+}
+.pro-tut.on { opacity: 1; transform: translate(-50%, 0); }
+.pro-tut b { color: #ffe7ae; font-weight: 700; }
+.pro-alt {
+  display: block; margin-top: 5px; font-style: normal;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em;
+  color: rgba(231, 224, 210, 0.55);
+}
+
+.pro-skip {
+  position: absolute; right: 26px; bottom: 24px; pointer-events: auto;
+  padding: 10px 16px; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.18em; color: rgba(231, 224, 210, 0.7);
+  background: rgba(16, 20, 26, 0.55);
+  border: 1px solid rgba(231, 224, 210, 0.16); border-radius: 2px; cursor: pointer;
+}
+.pro-skip:hover { color: #f2ebdc; }
+
+@media (max-width: 760px) {
+  .pro-panel {
+    top: auto; bottom: 0; left: 0; transform: none;
+    width: 100%; max-height: 50vh; border-radius: 10px 10px 0 0;
+    border-left: 1px solid var(--edge); border-top: 2px solid var(--accent);
+  }
+  .pro-title { top: 22%; }
+  .pro-turn { bottom: 53vh; }
+  .pro-tut { bottom: 54vh; font-size: 13.5px; white-space: normal; max-width: 84vw; text-align: center; }
+  .pro-skip { bottom: auto; top: 18px; right: 18px; }
+}
+
+/* the one click that starts everything */
+.pro-boot {
+  position: absolute; left: 50%; bottom: 20%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 14px;
+  padding: 0; background: none; border: none; cursor: pointer;
+  pointer-events: auto; opacity: 0; transition: opacity 900ms;
+}
+.pro-boot.on { opacity: 1; }
+.pro-boot-ring {
+  width: 46px; height: 46px; border-radius: 50%;
+  border: 1px solid rgba(255, 231, 174, 0.55);
+  position: relative;
+}
+.pro-boot-ring::after {
+  content: ''; position: absolute; inset: 15px; border-radius: 50%;
+  background: #ffe7ae; animation: bootPulse 2.4s ease-in-out infinite;
+}
+@keyframes bootPulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.55); opacity: 0.35; }
+}
+.pro-boot-label {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.32em;
+  text-transform: uppercase; color: rgba(255, 231, 174, 0.85);
+}
+.pro-boot:hover .pro-boot-label { color: #fff3d6; }
+
+/* ===========================================================================
+   achievements
+
+   A count in the top-right, a list behind it, and a brief acknowledgement when
+   something new turns up. Toasts sit under the touch buttons so the two never
+   collide on a phone.
+   ========================================================================= */
+
+.ach { position: fixed; inset: 0; pointer-events: none; z-index: 22; }
+.ach.hidden { opacity: 0; pointer-events: none; }
+
+/* Top-left, directly under the group's name.
+   It sat above the control list, at a bottom offset guessed from that list's
+   height — and the list is seven lines long, so the two overlapped. Anchoring
+   to the top means it depends only on the brand block, which is a fixed two
+   lines, and nothing below it can ever grow into it. */
+.ach-count {
+  position: absolute; top: 104px; left: 22px; pointer-events: auto;
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px;
+  background: rgba(16, 20, 26, 0.66);
+  border: 1px solid rgba(231, 224, 210, 0.14);
+  border-radius: 3px; backdrop-filter: blur(8px); cursor: pointer;
+  font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em;
+  color: rgba(231, 224, 210, 0.85);
+  transition: border-color 160ms, color 160ms;
+}
+.ach-count:hover { border-color: var(--accent); color: #f4eee0; }
+.ach-count-icon { color: var(--accent); font-size: 13px; }
+.ach-count.complete { border-color: var(--accent); }
+.ach-count.complete .ach-count-icon { animation: achGlow 2.4s ease-in-out infinite; }
+@keyframes achGlow { 50% { opacity: 0.45; } }
+
+/* The announcement strip: centred along the top, between the group's name on
+   the left and the controls on the right, which is the one band of the
+   interface nothing else occupies. */
+.ach-banner {
+  position: absolute; top: 76px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  width: min(440px, 54vw);
+}
+.ach-toasts { display: none; }
+.ach-toast {
+  position: relative; overflow: hidden; width: 100%;
+  display: flex; align-items: center; gap: 13px;
+  padding: 12px 18px 14px;
+  background: rgba(16, 20, 26, 0.9);
+  border: 1px solid color-mix(in srgb, var(--accent) 46%, transparent);
+  border-radius: 4px; backdrop-filter: blur(9px);
+  box-shadow: 0 10px 34px rgba(12, 16, 22, 0.35);
+  opacity: 0; transform: translateY(-12px);
+  transition: opacity 400ms, transform 400ms;
+}
+.ach-toast.on { opacity: 1; transform: translateY(0); }
+.ach-toast-kicker {
+  font-family: var(--mono); font-size: 8.5px; letter-spacing: 0.24em;
+  text-transform: uppercase; color: var(--accent);
+}
+
+/* the timer: a line that runs the width of the card over its lifetime, and
+   when it reaches the end the card goes and the list is ticked */
+.ach-toast-timer {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: rgba(231, 224, 210, 0.12);
+}
+.ach-toast-bar {
+  display: block; height: 100%; width: 100%;
+  background: var(--accent);
+  transform: scaleX(0); transform-origin: left center;
+  transition: transform 5200ms linear;
+}
+.ach-toast-icon { font-size: 20px; color: var(--accent); line-height: 1; }
+.ach-toast-text { display: flex; flex-direction: column; gap: 2px; }
+.ach-toast-text b {
+  font-family: var(--display); font-size: 14px; font-weight: 700; color: #f4eee0;
+}
+.ach-toast-text i {
+  font-style: normal; font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.06em; color: rgba(231, 224, 210, 0.6);
+}
+
+.ach-panel {
+  position: absolute; top: 146px; left: 22px;
+  width: min(330px, 84vw); max-height: 66vh; overflow-y: auto;
+  padding: 14px 16px 16px;
+  background: rgba(14, 18, 24, 0.94);
+  border: 1px solid rgba(231, 224, 210, 0.16);
+  border-radius: 3px; backdrop-filter: blur(10px);
+  opacity: 0; pointer-events: none; transform: translateY(-8px);
+  transition: opacity 240ms, transform 240ms;
+}
+.ach-panel.on { opacity: 1; pointer-events: auto; transform: translateY(0); }
+.ach-panel-head {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px; padding-bottom: 10px;
+  border-bottom: 1px solid rgba(231, 224, 210, 0.12);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.2em;
+  text-transform: uppercase; color: var(--accent);
+}
+.ach-panel-close {
+  background: none; border: none; cursor: pointer;
+  font-size: 18px; line-height: 1; color: rgba(231, 224, 210, 0.55);
+}
+.ach-panel-close:hover { color: #f4eee0; }
+
+.ach-item {
+  display: flex; align-items: flex-start; gap: 11px; padding: 7px 0;
+  border-bottom: 1px solid rgba(231, 224, 210, 0.05);
+}
+.ach-item-tick {
+  margin-left: auto; padding-left: 8px;
+  font-size: 13px; color: var(--accent); line-height: 1.3;
+}
+.ach-item-icon {
+  width: 20px; text-align: center; font-size: 14px;
+  color: rgba(231, 224, 210, 0.22);
+}
+.ach-item.done .ach-item-icon { color: var(--accent); }
+.ach-item-text { display: flex; flex-direction: column; gap: 1px; }
+.ach-item-text b {
+  font-family: var(--display); font-size: 13px; font-weight: 700;
+  color: rgba(231, 224, 210, 0.52);
+}
+.ach-item.done .ach-item-text b { color: #f4eee0; }
+.ach-item-text i {
+  font-style: normal; font-family: var(--mono); font-size: 10px;
+  color: rgba(231, 224, 210, 0.45);
+}
+
+@media (max-width: 700px) {
+  .ach-count { top: 86px; left: 14px; }
+  .ach-banner { top: 138px; width: 92vw; }
+  .ach-panel { top: 128px; left: 14px; right: 14px; width: auto; }
+}
+
+/* the hold while the textures arrive */
+.booting {
+  position: fixed; inset: 0; z-index: 44;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 22px; background: #12161c;
+  opacity: 0; transition: opacity 500ms; pointer-events: none;
+}
+.booting.on { opacity: 1; }
+.booting-mark {
+  font-family: var(--display); font-weight: 800; font-size: clamp(22px, 3.4vw, 34px);
+  letter-spacing: 0.01em; color: #f2ebdc;
+}
+.booting-bar {
+  width: min(220px, 44vw); height: 2px; overflow: hidden;
+  background: rgba(231, 224, 210, 0.14);
+}
+.booting-bar span {
+  display: block; width: 40%; height: 100%; background: var(--accent);
+  animation: bootBar 1.4s ease-in-out infinite;
+}
+@keyframes bootBar {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(320%); }
 }
