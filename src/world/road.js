@@ -31,8 +31,10 @@ export function buildApproach(ctx) {
   const path = decal(ROAD.width, len, surface({
     map: 'stone', repeat: [3, 20], color: '#cdc3ad', roughness: 0.95,
   }), FLOOR.stain);
-  path.position.set(ROAD.x, FLOOR.stain, midZ);
-  ctx.add(path, 0, 0, 0);
+  // ctx.add() *sets* the position, so it has to be given the real one —
+  // passing zeros here moved the whole path to the origin, under the hall
+  // floor, and the road was never drawn at all.
+  ctx.add(path, ROAD.x, FLOOR.stain, midZ);
 
   // a darker worn centre, so it reads as walked rather than laid
   const worn = decal(ROAD.width * 0.55, len, surface({
@@ -40,8 +42,7 @@ export function buildApproach(ctx) {
   // On the ladder, not twelve thousandths above the path — that gap is inside
   // the depth buffer's precision and is exactly what makes a floor flicker.
   }), FLOOR.marking);
-  worn.position.set(ROAD.x, FLOOR.marking, midZ);
-  ctx.add(worn, 0, 0, 0);
+  ctx.add(worn, ROAD.x, FLOOR.marking, midZ);
 
   // kerbs
   for (const s of [-1, 1]) {

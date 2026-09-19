@@ -16,13 +16,15 @@ export class Hud {
       </div>
       <div class="hud-room"><span class="hud-room-name"></span></div>
       <div class="hud-controls">
-        <span><b>W A S D</b> / <b>↑ ← ↓ →</b> walk</span>
-        <span><b>click</b> the floor to go there</span>
+        <span><b>W</b> / <b>↑</b> forward · <b>S</b> / <b>↓</b> back</span>
+        <span><b>A D</b> / <b>← →</b> turn · <b>Shift</b> hurry</span>
+        <span><b>drag</b> to walk · <b>wheel</b> zoom</span>
         <span><b>E</b> read · talk</span>
         <span><b>C</b> change your character</span>
         <span><b>M</b> map</span>
         <span><b>Q</b> quality <i class="hud-q">medium</i></span>
         <span><b>F</b> performance</span>
+        <span class="hud-controls-hint"><b>H</b> hide this</span>
       </div>
       <div class="hud-prompt"></div>
     `;
@@ -32,6 +34,18 @@ export class Hud {
     this.promptEl = this.el.querySelector('.hud-prompt');
     this._room = '';
     this._prompt = '';
+    this.controlsEl = this.el.querySelector('.hud-controls');
+    this._helpShown = true;
+  }
+
+  /**
+   * The key list is useful for the first minute and furniture after that. It
+   * tucks itself away a while after the HUD appears; H brings it back.
+   */
+  toggleHelp(force) {
+    this._helpShown = force ?? !this._helpShown;
+    this.controlsEl.classList.toggle('tucked', !this._helpShown);
+    clearTimeout(this._helpTimer);
   }
 
   setRoom(name, accent) {
@@ -61,5 +75,11 @@ export class Hud {
     this.qualityEl.classList.add('flash');
   }
 
-  show(v = true) { this.el.classList.toggle('hidden', !v); }
+  show(v = true) {
+    this.el.classList.toggle('hidden', !v);
+    if (v && !this._autoTucked) {
+      this._autoTucked = true;
+      this._helpTimer = setTimeout(() => this.toggleHelp(false), 25000);
+    }
+  }
 }

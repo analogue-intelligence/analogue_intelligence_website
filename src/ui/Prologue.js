@@ -21,10 +21,10 @@ import { ROAD } from '../world/road.js';
 //
 // Nothing here is a special case: it is the real player, the real interaction
 // system and the real camera throughout. The only borrowed machinery is the
-// perspective camera the engine already keeps for cinematics, and the blend
-// back to the isometric play camera, which is the same trick the old arrival
-// used — a long lens at ninety units frames almost exactly what the
-// orthographic camera frames, so the swap cannot be seen.
+// perspective camera the engine already keeps for cinematics. The hand-over is
+// seamless because the play camera is a perspective chase camera too: the
+// prologue flies its own camera onto exactly the pose the chase camera wants,
+// at the same field of view, and then simply lets go.
 //
 // Every phase can be skipped, and `finish()` is idempotent: whatever happens,
 // the player ends up standing on the road able to walk.
@@ -207,8 +207,7 @@ export class Prologue {
 
   _rebuild() {
     this.player.setAppearance(this.appearance);
-    // setAppearance rebuilds the mesh, so restore whatever the phase implies
-    this.player.group.scale.setScalar(this.phase === 'title' ? 0.001 : 1);
+    // setAppearance rebuilds only the figure; the group keeps its scale
   }
 
   /** Reveal the option groups one at a time, so the character assembles. */
@@ -239,6 +238,7 @@ export class Prologue {
     this._walked = 0;
     this._last.copy(this.player.position);
     this.player.setPosition(new THREE.Vector3(ROAD.x, 0, ROAD.spawn));
+    this.player.setHeading(Math.PI);
     this.player.revealed = true;
     this.input.enabled = true;
 
@@ -252,14 +252,15 @@ export class Prologue {
     this.reveal = this.revealTarget = 9.0;
     this.engine.post?.clearReveal?.();
 
-    this.engine.cinematic = false;
+    this.engine.follow(this.player.position, Math.PI);
     this.engine.seedLook(this.player.position);
+    this.engine.cinematic = false;
     this.audio?.door?.();
     // Both, always. Deciding by `pointer: coarse` got this wrong on every
     // touchscreen laptop, which is most of them — people were shown the phone
     // instructions while sitting at a keyboard.
-    this._tut('<b>W A S D</b> or the <b>arrow keys</b> to walk'
-      + '<i class="pro-alt">on a phone, drag your thumb on the left of the screen</i>');
+    this._tut('<b>W</b> / <b>↑</b> walk forward · <b>A D</b> / <b>← →</b> turn'
+      + '<i class="pro-alt">on a phone, drag on the screen: up to walk, sideways to turn</i>');
   }
 
   _tut(html) {
@@ -327,7 +328,11 @@ export class Prologue {
       this._t = 0;
       this.revealTarget = 0.52;
       this.titleEl.classList.remove('on');
-      this.player.reveal();
+      // The figure has been on screen since the first frame. reveal() grows
+      // it from nothing, so calling it here made the visitor blink out and
+      // pop back in at the exact moment the camera settled on them.
+      if (this.player.group.scale.x < 0.99) this.player.reveal();
+      else this.player.revealed = true;
       this.audio?.chime?.(4);
     }
   }
@@ -375,13 +380,22 @@ export class Prologue {
   /** Gravity, a landing, and the building revealed behind you. */
   _dropping(dt) {
     const k = Math.min(this._t / (LAND_MS / 1000), 1);
+    if (!this._dropFrom) {
+      this._dropFrom = {
+        pos: this.engine.introCam.position.clone(),
+        look: this._camLook.clone(),
+        rot: this.player.group.rotation.y,
+      };
+    }
 
     // fall on an ease-in, then a short squash and a settle
     const fall = Math.min(k / 0.40, 1);
     const y = FLOAT_Y * (1 - fall * fall);
     this.player.group.position.y = Math.max(0, y);
-    this.player.group.rotation.y +=
-      ((Math.PI - this.player.group.rotation.y) % (Math.PI * 2)) * Math.min(dt * 2.4, 1);
+    // turn to face the building by the shortest way round, however many
+    // times the figure was spun while it was being dressed
+    const dr = ((Math.PI - this.player.group.rotation.y) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+    this.player.group.rotation.y += dr * Math.min(dt * 3.2, 1);
 
     if (k > 0.40) {
       const b = (k - 0.40) / 0.60;
@@ -390,16 +404,25 @@ export class Prologue {
       if (!this._thud) { this._thud = true; this.audio?.footstep?.(); }
     }
 
-    // the camera climbs onto the isometric axis and turns to face the building
+    // The camera swings round behind the visitor and climbs onto the chase
+    // camera's own mark, so when the prologue lets go nothing moves at all.
+    // It orbits rather than cutting straight across, which keeps the figure
+    // in the middle of the frame for the whole turn.
     const e = k * k * (3 - 2 * k);
-    const iso = new THREE.Vector3(30, 34, 30).normalize().multiplyScalar(90);
-    this._camPos.lerpVectors(
-      new THREE.Vector3(0, FLOAT_Y + 1.5, ROAD.spawn - 7.1),
-      new THREE.Vector3(iso.x, iso.y, ROAD.spawn + iso.z), e);
-    this._camLook.lerpVectors(
-      new THREE.Vector3(0, FLOAT_Y - 0.2, ROAD.spawn),
-      new THREE.Vector3(0, 1.4, ROAD.spawn), e);
-    const fov = 46 + (19.6 - 46) * e;
+    const ground = new THREE.Vector3(ROAD.x, 0, ROAD.spawn);
+    const pose = this.engine.chasePose(ground, Math.PI);
+    const from = this._dropFrom.pos;
+    const r0 = Math.hypot(from.x - ground.x, from.z - ground.z);
+    const r1 = Math.hypot(pose.pos.x - ground.x, pose.pos.z - ground.z);
+    const a0 = Math.atan2(from.x - ground.x, from.z - ground.z);
+    const a1 = Math.atan2(pose.pos.x - ground.x, pose.pos.z - ground.z);
+    let da = ((a1 - a0) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+    if (Math.abs(Math.abs(da) - Math.PI) < 0.01) da = Math.PI;     // pick a side
+    const a = a0 + da * e, rr = r0 + (r1 - r0) * e;
+    this._camPos.set(ground.x + Math.sin(a) * rr, from.y + (pose.pos.y - from.y) * e,
+      ground.z + Math.cos(a) * rr);
+    this._camLook.lerpVectors(this._dropFrom.look, pose.look, e);
+    const fov = 46 + (this.engine.camera.fov - 46) * e;
     if (Math.abs(this.engine.introCam.fov - fov) > 0.01) {
       this.engine.introCam.fov = fov;
       this.engine.introCam.updateProjectionMatrix();
@@ -435,7 +458,7 @@ export class Prologue {
       this._tut('Press <b>E</b>, or click the label, to read the sign'
         + '<i class="pro-alt">on a phone, tap the sign or use the button</i>');
       this.phase = 'sign';
-      setTimeout(() => this.finish(), 9000);       // never trap anyone here
+      this._signTimer = setTimeout(() => this.finish(), 9000);   // never trap anyone here
     }
   }
 
@@ -450,22 +473,31 @@ export class Prologue {
     this.reveal = this.revealTarget = 9.0;
     this.engine.post?.clearReveal?.();
     this.player.setPosition(new THREE.Vector3(ROAD.x, 0, ROAD.near + 2));
+    this.player.setHeading(Math.PI);
     this.player.group.scale.setScalar(1);
     this.player.revealed = true;
-    this.engine.cinematic = false;
+    this.engine.follow(this.player.position, Math.PI);
     this.engine.seedLook(this.player.position);
+    this.engine.cinematic = false;
     this.finish();
   }
 
   finish() {
     if (this.done) return;
     this.done = true;
+    clearTimeout(this._signTimer);
     this.engine.post?.clearReveal?.();
     // skip() can be called before start(), in which case there is nothing to
     // remember and saveAppearance must not be handed undefined
     if (!this.appearance) this.appearance = null;
+    const wasCinematic = this.engine.cinematic;
     this.phase = 'done';
     this.input.enabled = true;
+    if (wasCinematic) {
+      this.player.setHeading(this.player.group.rotation.y);
+      this.engine.follow(this.player.position, this.player.heading);
+      this.engine.seedLook(this.player.position);
+    }
     this.engine.cinematic = false;
     this.player.revealed = true;
     this.player.group.scale.setScalar(1);

@@ -7,7 +7,7 @@ import { TouchControls } from './core/Touch.js';
 
 import { buildBuilding } from './world/Building.js';
 import { RoomManager } from './world/RoomManager.js';
-import { ROOM_BY_ID } from './world/floorplan.js';
+import { ROOM_BY_ID, ROOMS, PLATFORMS } from './world/floorplan.js';
 import { whenReady } from './world/textures.js';
 
 import { Player } from './character/Player.js';
@@ -106,7 +106,7 @@ let introDone = false;
 creator.onDone = (appearance) => {
   if (!world) return;
   world.player.setAppearance(appearance);
-  world.input.enabled = true;
+  world.input.enabled = !world.modalOpen();
 };
 
 // =============================================================== phase two ===
@@ -124,10 +124,49 @@ const raise = () => {
     building.colliders, building.nav, loadAppearance() ?? DEFAULT_APPEARANCE);
   player.setPosition(building.spawn);
   engine.scene.add(player.group);
+  engine.follow(building.spawn, player.heading);
   engine.seedLook(building.spawn);
-  engine.follow(building.spawn);
 
-  const input = new Input(engine, building.floorMeshes);
+  // The chase camera must never end up inside a floor above the visitor —
+  // standing in the hall under the library, a boom of eight units would put
+  // the lens inside the library's floor slab. If the boom would pass under an
+  // upper floor it is shortened to stop at its edge, and if the visitor is
+  // themselves under one, the camera drops below it.
+  building.cutaway.camera = engine.camera;
+  // Upper floors, by the extent of their slabs — a room's floor slab runs
+  // past its walkable area (the library's covers the landing), so both count.
+  const upper = [...ROOMS, ...PLATFORMS].filter((p) => p.y > 0.5);
+  engine.constrainCamera = (t, fx, fz, back, up) => {
+    const over = upper.filter((p) => p.y > t.y + 2);
+    if (!over.length) return null;
+    const under = (x, z) => over.find((p) => x >= p.x0 - 0.6 && x <= p.x1 + 0.6 && z >= p.z0 - 0.6 && z <= p.z1 + 0.6);
+    // the library stands on a solid plinth: a camera under the overhang must
+    // stop at its face rather than back into it
+    const solid = PLATFORMS.filter((p) => p.id === 'library' && p.y > t.y + 2);
+    const inSolid = (x, z) => solid.some((p) => x >= p.x0 - 0.8 && x <= p.x1 + 0.8 && z >= p.z0 - 0.8 && z <= p.z1 + 0.8);
+    const roof = under(t.x, t.z);
+    if (roof) {
+      let b = Math.min(back, 5.5);
+      for (let i = 1; i <= 20; i++) {
+        const d = (b * i) / 20;
+        if (inSolid(t.x - fx * d, t.z - fz * d)) { b = Math.max(0.5, d - b / 20); break; }
+      }
+      return { back: b, up: Math.max(2.2, Math.min(up, roof.y - t.y - 1.0)) };
+    }
+    // Walk out along the boom; stop just short of the first overhang. The
+    // camera keeps its height — it is outside the footprint, so nothing is
+    // above it — and simply looks down more steeply when it is pulled in.
+    const steps = 24;
+    for (let i = 1; i <= steps; i++) {
+      const d = (back * i) / steps;
+      if (under(t.x - fx * d, t.z - fz * d)) {
+        return { back: Math.max(0.6, d - back / steps), up };
+      }
+    }
+    return null;
+  };
+
+  const input = new Input(engine);
   input.enabled = false;
 
   // The phone layer. Inert on a desktop — TouchControls builds nothing at all
@@ -157,7 +196,7 @@ const raise = () => {
       roomCard.show(spec);
       audio.chime(spec.id === 'library' ? -5 : 4);
     }
-  });
+  }, engine.camera);
   minimap.rooms = rooms;
   minimap.show(false);
 
@@ -168,8 +207,8 @@ const raise = () => {
     const landing = building.nav.resolve(to.x, to.z, spec.y);
     if (!landing.ok) return;
     player.setPosition(new THREE.Vector3(to.x, landing.y, to.z));
+    engine.follow(player.position, player.heading);
     engine.seedLook(player.position);
-    input.moveTarget = null;
     award('travelled');
     audio.chime(2);
   };
@@ -233,13 +272,16 @@ const raise = () => {
   });
 
   input.onKey('c', () => {
-    if (modal.open || dialogue.open) return;
+    // not during the prologue: it has its own dressing room, and opening the
+    // full creator over it left two sets of controls fighting for the figure
+    if (!prologue.done || modal.open || dialogue.open) return;
     if (prologue.done) award('restyled');
     input.enabled = false;
     creator.open();
   });
 
-  input.onKey('m', () => minimap.toggle());
+  input.onKey('m', () => { if (prologue.done) minimap.toggle(); });
+  input.onKey('h', () => hud.toggleHelp());
   input.onKey('p', () => engine.post.toggle());
   input.onKey('n', () => audio.toggle());
   input.onKey('f', () => stats.toggle());
@@ -249,6 +291,7 @@ const raise = () => {
   // just pick, and stop second-guessing them once they have.
   const TIERS = ['low', 'medium', 'high'];
   input.onKey('q', () => {
+    if (!prologue.done) return;       // a tier change mid-ceremony costs frames
     const next = TIERS[(TIERS.indexOf(engine.tier) + 1) % TIERS.length];
     engine.autoQuality = false;
     engine.setTier(next);
@@ -256,8 +299,8 @@ const raise = () => {
     hud.setQuality(next, true);
   });
 
-    engine.onTierChange = (name, s) => {
-    lightPool.setCount(s.lights);
+  engine.onTierChange = (name, s) => {
+    lightPool.setCount(s.lights);     // a no-op: every tier uses the same count
     hud.setQuality(name);
     if (key.shadow.mapSize.width !== s.shadowMap) {
       key.shadow.mapSize.set(s.shadowMap, s.shadowMap);
@@ -303,6 +346,7 @@ const raise = () => {
 
   // ----------------------------------------------------------------- tick ---
   const look = new THREE.Vector3();
+  const _ahead = new THREE.Vector3();
 
   engine.onTick((dt) => {
     if (!prologue.done) prologue.update(dt);
@@ -314,7 +358,7 @@ const raise = () => {
     if (!prologue.ownsPlayer) player.update(dt, input);
     building.tick(dt, player.position);
     building.cutaway.update(dt, player.position);
-    rooms.update(dt);
+    rooms.update(dt, engine.activeCamera);
     lightPool.update(dt, player.position);
     proximity.update(dt);
     npcs.update(dt);
@@ -333,18 +377,24 @@ const raise = () => {
       } else { hud.setPrompt(null); touch.setTarget(null); }
     } else { hud.setPrompt(null); touch.setTarget(null); }
 
-    // the camera looks slightly ahead of you, which reads as intent
+    // the chase camera rides behind whichever way you are facing
     look.copy(player.position);
     look.y += 1.4;
-    engine.follow(look);
+    if (!prologue.ownsPlayer) engine.follow(look, player.heading);
 
-    // keep the sun tracking the player so shadows stay crisp across a big plan
-    key.position.set(player.position.x + 26, 40, player.position.z + 22);
-    key.target.position.copy(player.position);
+    // Keep the sun tracking the player so shadows stay crisp across a big
+    // plan — centred a little ahead of them, because that is where the
+    // camera is looking.
+    const fwd = player.forward(_ahead).multiplyScalar(9);
+    key.position.set(player.position.x + fwd.x + 26, 40, player.position.z + fwd.z + 22);
+    key.target.position.set(player.position.x + fwd.x, player.position.y, player.position.z + fwd.z);
     key.target.updateMatrixWorld();
   });
 
-  world = { building, player, input, proximity, npcs, rooms, minimap, lightPool };
+  world = {
+    building, player, input, proximity, npcs, rooms, minimap, lightPool,
+    modalOpen: () => modal.open || dialogue.open,
+  };
   window.AI = { engine, stats, prologue, achievements, ...world };
 
   // Compile every shader before anything moves. The prologue opens on a held

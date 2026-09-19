@@ -4,11 +4,14 @@ import { setAnisotropy } from '../world/textures.js';
 import { QUALITY } from './quality.js';
 
 // -----------------------------------------------------------------------------
-// Engine — renderer, the isometric follow-camera, the clock, and the tick loop.
+// Engine — renderer, the third-person chase camera, the clock, and the loop.
 //
-// Two cameras: an orthographic one for play (the cutaway diorama look depends on
-// parallel projection) and a perspective one the intro borrows so it can move
-// *through* the front door. `cinematic` decides which is live.
+// Two cameras, both perspective: a chase camera for play, which rides behind
+// and above the visitor and turns with them (so W is always "the way I am
+// facing"), and a free one the prologue borrows for its set pieces.
+// `cinematic` decides which is live. Because both use the same projection, the
+// prologue can hand over by simply flying its camera onto the chase camera's
+// mark — there is no projection swap left to hide.
 //
 // It also watches its own frame time. A building this size has to run on a
 // laptop with integrated graphics, so rather than pick one setting and hope,
@@ -18,10 +21,14 @@ import { QUALITY } from './quality.js';
 // them by hand.
 // -----------------------------------------------------------------------------
 
+// `lights` is deliberately the same on every tier. The number of point lights
+// is compiled into every material's shader, so changing it with the tier
+// recompiled the entire scene mid-walk — a long hitch on a laptop and, on a
+// phone, sometimes long enough to lose the WebGL context (a black screen).
 export const TIERS = {
-  high:   { pixelRatio: 1.75, shadows: true,  shadowMap: 2048, lights: 6, post: true, shadowEvery: 1, ao: 0.50, bloom: 0.5,  bands: 10, liveTex: 0.035 },
+  high:   { pixelRatio: 1.75, shadows: true,  shadowMap: 2048, lights: 4, post: true, shadowEvery: 1, ao: 0.50, bloom: 0.5,  bands: 10, liveTex: 0.035 },
   medium: { pixelRatio: 1.25, shadows: true,  shadowMap: 1024, lights: 4, post: true, shadowEvery: 2, ao: 0.42, bloom: 0.38, bands: 9, liveTex: 0.05 },
-  low:    { pixelRatio: 1.0,  shadows: false, shadowMap: 512,  lights: 3, post: true, shadowEvery: 4, ao: 0.0,  bloom: 0.0,  bands: 8, liveTex: 0.12 },
+  low:    { pixelRatio: 1.0,  shadows: true,  shadowMap: 512,  lights: 4, post: true, shadowEvery: 6, ao: 0.0,  bloom: 0.0,  bands: 8, liveTex: 0.12 },
 };
 const ORDER = ['low', 'medium', 'high'];
 
@@ -73,16 +80,25 @@ export class Engine {
     this.scene.background = skyTexture();
     this.scene.fog = new THREE.Fog('#f0e2cc', 130, 300);
 
-    this.frustum = 15.5;
-    this.targetFrustum = 15.5;
-    this.frameScale = 1.0;
+    // ---- chase camera ----------------------------------------------------
+    // `zoom` scales the boom: 1 is the default framing, <1 closer, >1 further.
+    // Room entry nudges it (setZoom), a pinch or the wheel takes it over.
+    this.zoom = 1;
+    this.targetZoom = 1;
     this.lockZoom = false;
-    this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 220);
-    this.camOffset = new THREE.Vector3(30, 34, 30);
-    this.camTarget = new THREE.Vector3(0, 1.5, 0);
-    this._camLook = new THREE.Vector3(0, 1.5, 0);
+    this.camera = new THREE.PerspectiveCamera(50, 1, 0.5, 260);
+    this.camTarget = new THREE.Vector3(0, 1.5, 0);   // what we are following
+    this.camHeading = Math.PI;                        // which way it is facing
+    this._camLook = new THREE.Vector3(0, 1.5, 0);    // eased look point
+    this._camPos = new THREE.Vector3(0, 10, 10);     // eased camera position
+    this._camYaw = Math.PI;                           // eased yaw
+    this._chase = { pos: new THREE.Vector3(), look: new THREE.Vector3() };
+    this._snap = true;
+    // Optional hook that shortens the boom so the camera never ends up inside
+    // an upper floor; main.js wires it to the floor plan.
+    this.constrainCamera = null;
 
-    this.introCam = new THREE.PerspectiveCamera(52, 1, 0.1, 220);
+    this.introCam = new THREE.PerspectiveCamera(52, 1, 0.1, 260);
     this.cinematic = false;
 
     this.clock = new THREE.Clock();
@@ -97,10 +113,33 @@ export class Engine {
     this._sinceChange = 0;
     this._frame = 0;
     this.fps = 60;
+    // Tier changes and resizes are *queued* and applied at the top of the next
+    // frame, before anything is drawn. Resizing the canvas clears it, so doing
+    // it after a frame had been rendered (which is where the frame-time watch
+    // runs) showed the browser an empty canvas for one frame: the black flash.
+    this._pendingTier = null;
+    this._needsResize = false;
 
     this._applyTier();
-    window.addEventListener('resize', () => this.resize());
+    window.addEventListener('resize', () => { this._needsResize = true; });
+    window.addEventListener('orientationchange', () => { this._needsResize = true; });
     this.resize();
+
+    // A lost context (a phone backgrounding the tab, or running out of GPU
+    // memory) otherwise leaves a black canvas forever. Preventing the default
+    // lets the browser hand it back, and three.js rebuilds its state when it
+    // does.
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this.contextLost = true;
+      console.warn('[engine] WebGL context lost — waiting for it to come back');
+    }, false);
+    canvas.addEventListener('webglcontextrestored', () => {
+      this.contextLost = false;
+      this._needsResize = true;
+      this.renderer.shadowMap.needsUpdate = true;
+      console.warn('[engine] WebGL context restored');
+    }, false);
   }
 
   /**
@@ -159,22 +198,73 @@ export class Engine {
   get settings() { return TIERS[this.tier]; }
 
   onTick(fn) { this._ticks.push(fn); }
-  follow(point) { this.camTarget.copy(point); }
-  seedLook(point) { this._camLook.copy(point); }
-  /** Room entry nudges the framing; a manual pinch takes it over for good. */
-  setZoom(frustum) {
-    if (this.lockZoom && !this._zoomFromUser) return;
-    this.targetFrustum = frustum;
+
+  /** Follow a point, facing `heading` (radians, 0 = +z). */
+  follow(point, heading = this.camHeading) {
+    this.camTarget.copy(point);
+    this.camHeading = heading;
+  }
+  /** Jump the chase camera straight to its mark on the next frame. */
+  seedLook(point) {
+    if (point) this.camTarget.copy(point);
+    this._snap = true;
   }
 
-  /** Widen the view on a narrow screen: desktop framing shows almost nothing. */
+  /**
+   * Room entry nudges the framing. The old orthographic frustum sizes
+   * (14.5 – 16.6) are still what callers pass; they map onto the boom length
+   * around the default of 15.5. A manual pinch or wheel takes it over for good.
+   */
+  setZoom(frustum) {
+    if (this.lockZoom && !this._zoomFromUser) return;
+    this.targetZoom = THREE.MathUtils.clamp(frustum / 15.5, 0.55, 1.9);
+  }
+  /** Multiply the boom length — the wheel and the pinch both come through here. */
+  zoomBy(k) {
+    this.lockZoom = true;
+    this.targetZoom = THREE.MathUtils.clamp(this.targetZoom * k, 0.55, 1.9);
+  }
+
+  /**
+   * Where the chase camera wants to be for a visitor at `target` facing
+   * `heading`. Also used by the prologue to land its own camera on the exact
+   * same mark before handing over.
+   */
+  chasePose(target, heading, zoom = this.zoom, out = this._chase) {
+    const fx = Math.sin(heading), fz = Math.cos(heading);
+    // Behind and above. High enough to see over the furniture (and over the
+    // 8-unit walls at the default zoom), close enough to still read as
+    // following a person rather than watching a map.
+    let back = 8.6 * zoom;
+    let up = 8.2 * zoom;
+    if (this.constrainCamera) {
+      const c = this.constrainCamera(target, fx, fz, back, up);
+      if (c) { back = c.back; up = c.up; }
+    }
+    out.pos.set(target.x - fx * back, target.y + up, target.z - fz * back);
+    // look a little ahead of the visitor, which reads as intent
+    out.look.set(target.x + fx * 2.4, target.y + 0.2, target.z + fz * 2.4);
+    return out;
+  }
+
+  /** Match the chase camera's field of view to the screen shape. */
   autoFrame() {
-    const w = window.innerWidth;
-    this.frameScale = w < 520 ? 1.5 : w < 820 ? 1.24 : 1.0;
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    // Keep roughly 62° of *horizontal* view, so a portrait phone does not get
+    // a letterbox slot of the world; landscape screens use a plain 50°.
+    const hfov = THREE.MathUtils.degToRad(62);
+    const vfov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hfov / 2) / aspect));
+    this.camera.fov = THREE.MathUtils.clamp(vfov, 50, 80);
   }
   setCam(pos, target) { this.introCam.position.copy(pos); this.introCam.lookAt(target); }
 
+  /** Queue a tier change; it is applied at the start of the next frame. */
   setTier(name) {
+    if (!TIERS[name] || name === this.tier) return;
+    this._pendingTier = name;
+  }
+
+  _commitTier(name) {
     if (!TIERS[name] || name === this.tier) return;
     this.tier = name;
     this._sinceChange = 0;
@@ -188,7 +278,10 @@ export class Engine {
     QUALITY.tier = this.tier;
     QUALITY.liveTex = s.liveTex ?? 0.05;
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, s.pixelRatio));
-    this.renderer.shadowMap.enabled = s.shadows;
+    // Shadows stay *enabled* on every tier; the low tier just refreshes them
+    // rarely at a small size. Flipping shadowMap.enabled changes a define in
+    // every material, so each tier change used to recompile the whole scene.
+    this.renderer.shadowMap.enabled = true;
 
     this.post.enabled = s.post;
     this.post.setQuality(s);
@@ -211,6 +304,7 @@ export class Engine {
       // already behind the creator overlay rather than blocking the first paint.
       if (!this.envMap) this._buildEnvironment();
       this.renderer.compile(this.scene, this.camera);
+      if (this.introCam) this.renderer.compile(this.scene, this.introCam);
       this.renderer.shadowMap.needsUpdate = true;
     } catch { /* compilation is an optimisation, never a requirement */ }
   }
@@ -222,25 +316,45 @@ export class Engine {
     return {
       x: (p.x * 0.5 + 0.5) * window.innerWidth,
       y: (-p.y * 0.5 + 0.5) * window.innerHeight,
-      visible: p.z < 1,
+      visible: p.z < 1 && p.z > -1,
     };
   }
 
+  /** The camera that is actually being drawn with. */
+  get activeCamera() { return this.cinematic ? this.introCam : this.camera; }
+
   resize() {
-    const w = window.innerWidth, h = window.innerHeight, aspect = w / h;
+    this._needsResize = false;
+    const w = window.innerWidth, h = window.innerHeight, aspect = w / Math.max(1, h);
     this.autoFrame();
-    this._applyFrustum(aspect);
+    this.camera.aspect = aspect;
+    this.camera.updateProjectionMatrix();
     this.introCam.aspect = aspect;
     this.introCam.updateProjectionMatrix();
     this.renderer.setSize(w, h, false);
     this.post.setSize(w, h);
   }
 
-  _applyFrustum(aspect) {
-    const f = this.frustum * this.frameScale;
-    this.camera.left = -f * aspect; this.camera.right = f * aspect;
-    this.camera.top = f; this.camera.bottom = -f;
-    this.camera.updateProjectionMatrix();
+  /** Ease the chase camera toward its mark behind the visitor. */
+  _updateChase(dt) {
+    if (Math.abs(this.zoom - this.targetZoom) > 0.0005) {
+      this.zoom += (this.targetZoom - this.zoom) * Math.min(dt * 4, 1);
+    }
+    // The yaw lags the visitor's heading a little — the camera swings round
+    // behind you as you turn, rather than being bolted to your back.
+    const dy = ((this.camHeading - this._camYaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    this._camYaw += this._snap ? dy : dy * Math.min(dt * 3.2, 1);
+    const pose = this.chasePose(this.camTarget, this._camYaw);
+    if (this._snap) {
+      this._camPos.copy(pose.pos);
+      this._camLook.copy(pose.look);
+      this._snap = false;
+    } else {
+      this._camPos.lerp(pose.pos, Math.min(dt * 7, 1));
+      this._camLook.lerp(pose.look, Math.min(dt * 9, 1));
+    }
+    this.camera.position.copy(this._camPos);
+    this.camera.lookAt(this._camLook);
   }
 
   /** Rolling frame-time watch. Slow for a while → drop a tier. Fast → try up. */
@@ -270,20 +384,16 @@ export class Engine {
     const loop = () => {
       requestAnimationFrame(loop);
       const dt = Math.min(this.clock.getDelta(), 0.05);
+      if (this.contextLost) return;
       this._frame++;
+
+      // anything that resizes the canvas happens *before* this frame draws
+      if (this._pendingTier) { const t = this._pendingTier; this._pendingTier = null; this._commitTier(t); }
+      if (this._needsResize) this.resize();
 
       for (const fn of this._ticks) fn(dt);
 
-      if (Math.abs(this.frustum - this.targetFrustum) > 0.002) {
-        this.frustum += (this.targetFrustum - this.frustum) * Math.min(dt * 2.4, 1);
-        this._applyFrustum(window.innerWidth / window.innerHeight);
-      }
-
-      if (!this.cinematic) {
-        this._camLook.lerp(this.camTarget, Math.min(dt * 6, 1));
-        this.camera.position.copy(this._camLook).add(this.camOffset);
-        this.camera.lookAt(this._camLook);
-      }
+      if (!this.cinematic) this._updateChase(dt);
 
       // Shadows only need redrawing every nth frame: the sun barely moves and a
       // one-frame-stale shadow is invisible at this camera distance.
@@ -291,8 +401,7 @@ export class Engine {
         this.renderer.shadowMap.needsUpdate = true;
       }
 
-      const cam = this.cinematic ? this.introCam : this.camera;
-      this.post.render(this.scene, cam, dt);
+      this.post.render(this.scene, this.activeCamera, dt);
       this._watch(dt);
     };
     loop();

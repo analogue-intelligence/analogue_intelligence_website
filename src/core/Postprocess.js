@@ -54,12 +54,20 @@ uniform float uBloom;
 uniform vec2  uRevealC;
 uniform float uRevealR;
 uniform float uRevealSoft;
+uniform float uPersp;
 
 varying vec2 vUv;
 
-// orthographic depth is linear in view space already
+// View-space distance for a depth-buffer sample. The orthographic camera's
+// buffer is linear already; the perspective one (the chase camera, and the
+// prologue's) stores 1/z, which has to be undone or every edge and every
+// occlusion test is measured in the wrong units.
 float viewDepth(vec2 uv) {
   float d = texture2D(tDepth, uv).x;
+  if (uPersp > 0.5) {
+    float z = d * 2.0 - 1.0;
+    return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear));
+  }
   return uNear + d * (uFar - uNear);
 }
 
@@ -78,7 +86,7 @@ float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 // This is the single strongest depth cue available here. Without it every
 // object sits *on* the floor rather than *in* the room.
 // ---------------------------------------------------------------------------
-float occlusion(vec2 uv, float dC, vec2 grad) {
+float occlusion(vec2 uv, float dC, vec2 grad, vec2 gradInv) {
   if (uAO <= 0.0) return 1.0;
   float occ = 0.0;
   for (int i = 0; i < 8; i++) {
@@ -94,8 +102,12 @@ float occlusion(vec2 uv, float dC, vec2 grad) {
     // occluded, and every large plane picks up a dirty gradient across it.
     // Predicting what the depth *should* be if the surface simply continued
     // means only genuine creases register.
-    float predicted = dC + dot(off / uTexel, grad);
-    float diff = predicted - texture2D(tDepth, uv + off).x * (uFar - uNear);
+    // Under perspective a plane is linear in 1/z across the screen, not in z,
+    // so the prediction is made there.
+    float predicted = uPersp > 0.5
+      ? 1.0 / max(1.0 / dC + dot(off / uTexel, gradInv), 1e-4)
+      : dC + dot(off / uTexel, grad);
+    float diff = predicted - viewDepth(uv + off);
     occ += clamp(diff / 0.42, 0.0, 1.0) * (1.0 - smoothstep(1.4, 3.0, diff));
   }
   return clamp(1.0 - (occ / 8.0) * uAO, 0.0, 1.0);
@@ -129,17 +141,29 @@ void main() {
   float dL = viewDepth(vUv - vec2(uTexel.x, 0.0));
   float dU = viewDepth(vUv + vec2(0.0, uTexel.y));
   float dD = viewDepth(vUv - vec2(0.0, uTexel.y));
-  float edge = abs(dR - dC) + abs(dL - dC) + abs(dU - dC) + abs(dD - dC);
-  edge = smoothstep(0.06, 0.42, edge);
+  float edge;
+  if (uPersp > 0.5) {
+    // Second difference of 1/z, scaled back to world units. First
+    // differences mark every floor seen at a grazing angle as an edge; the
+    // second difference of 1/z is zero across any flat surface, so only real
+    // creases and silhouettes are inked.
+    float iC = 1.0 / dC;
+    float lap = abs(1.0 / dR + 1.0 / dL - 2.0 * iC) + abs(1.0 / dU + 1.0 / dD - 2.0 * iC);
+    edge = smoothstep(0.05, 0.35, lap * dC * dC / max(1.0, dC * 0.05));
+  } else {
+    edge = abs(dR - dC) + abs(dL - dC) + abs(dU - dC) + abs(dD - dC);
+    edge = smoothstep(0.06, 0.42, edge);
+  }
   // don't outline the far plane, and keep lines out of the brightest highlights
-  float inWorld = step(dC, uFar - 0.5);
+  float inWorld = step(dC, uFar * 0.995);
   float lineAmt = edge * inWorld * uInk * (1.0 - 0.55 * smoothstep(0.55, 1.0, luma(col)));
   col *= (1.0 - lineAmt * 0.85);
 
   // ---- 1b. ambient occlusion ----------------------------------------------
   // the same four taps the ink edge already made, reused as a depth gradient
   vec2 grad = vec2((dR - dL) * 0.5, (dU - dD) * 0.5);
-  col *= mix(1.0, occlusion(vUv, dC, grad), inWorld);
+  vec2 gradInv = vec2((1.0 / dR - 1.0 / dL) * 0.5, (1.0 / dU - 1.0 / dD) * 0.5);
+  col *= mix(1.0, occlusion(vUv, dC, grad, gradInv), inWorld);
 
   // ---- 1c. highlight bleed -------------------------------------------------
   col += bleed(vUv);
@@ -210,10 +234,19 @@ export class Postprocess {
 
     try {
       const size = renderer.getDrawingBufferSize(new THREE.Vector2());
+      // A half-float target needs an extension to be *renderable*, and some
+      // phones (older iPhones in particular) do not have it. Rendering into an
+      // incomplete target produces nothing at all — a black screen with the
+      // interface floating over it — so check, and use 8-bit where we must.
+      const caps = renderer.capabilities;
+      const ext = renderer.extensions;
+      const halfOk = caps.isWebGL2
+        ? (ext.has('EXT_color_buffer_float') || ext.has('EXT_color_buffer_half_float'))
+        : ext.has('EXT_color_buffer_half_float');
       this.target = new THREE.WebGLRenderTarget(size.x, size.y, {
         minFilter: THREE.LinearFilter,
         magFilter: THREE.LinearFilter,
-        type: THREE.HalfFloatType,
+        type: halfOk ? THREE.HalfFloatType : THREE.UnsignedByteType,
         colorSpace: THREE.LinearSRGBColorSpace,
       });
       this.target.depthTexture = new THREE.DepthTexture(size.x, size.y);
@@ -255,6 +288,7 @@ export class Postprocess {
         uRevealR: { value: 9.0 },
         uRevealSoft: { value: 0.14 },
         uAORadius: { value: 0.016 },
+        uPersp: { value: 0 },
         uBloom: { value: 0.5 },
       };
 
@@ -294,9 +328,25 @@ export class Postprocess {
     this.uniforms.uTime.value += dt;
     this.uniforms.uNear.value = camera.near;
     this.uniforms.uFar.value = camera.far;
+    this.uniforms.uPersp.value = camera.isPerspectiveCamera ? 1 : 0;
     r.setRenderTarget(this.target);
     r.clear();
     r.render(scene, camera);
+    // First frame only: make sure the target can actually be drawn into. If
+    // it cannot, give up on the painted pass rather than show a black screen.
+    if (!this._checked) {
+      this._checked = true;
+      try {
+        const gl = r.getContext();
+        if (gl.checkFramebufferStatus(gl.FRAMEBUFFER) !== gl.FRAMEBUFFER_COMPLETE) {
+          console.warn('[post] render target incomplete on this device, rendering direct');
+          this.ok = false;
+          r.setRenderTarget(null);
+          r.render(scene, camera);
+          return;
+        }
+      } catch { /* the check is a courtesy */ }
+    }
     r.setRenderTarget(null);
     r.render(this.scene, this.camera);
   }

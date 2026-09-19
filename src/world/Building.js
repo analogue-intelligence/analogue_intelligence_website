@@ -95,7 +95,10 @@ export function buildBuilding() {
   const inside = (x, z) => keepOut.some(
     (k) => x > k.x0 && x < k.x1 && z > k.z0 && z < k.z1);
 
-  for (let i = 0; i < 320 && tufts.children.length < 120; i++) {
+  // Forty, not a hundred and twenty. Seen from behind the visitor rather than
+  // from a map height, the lawn was a field of green boxes competing with the
+  // building for attention.
+  for (let i = 0; i < 320 && tufts.children.length < 40; i++) {
     const x = BOUNDS.x0 - 6 + rnd() * (BOUNDS.x1 - BOUNDS.x0 + 12);
     const z = BOUNDS.z0 - 6 + rnd() * (BOUNDS.z1 - BOUNDS.z0 + 12);
     if (inside(x, z)) continue;
@@ -281,7 +284,7 @@ function buildWall(group, colliders, cutaway, spec) {
     mesh.position.set(axis === 'x' ? at : mid, sy + sh / 2, axis === 'x' ? mid : at);
     mesh.receiveShadow = true;
     group.add(mesh);
-    cutaway.add(mesh, axis, at);
+    cutaway.add(mesh, axis, at, { wall: true });
 
     // only full-height stretches block movement; lintels sit overhead
     if (sy <= y + 0.01) {
@@ -438,6 +441,26 @@ function mergeSceneStatics(group, { tick, interactables, cutaway, doors }) {
     if (second.get(mesh) !== h) bar(mesh);
   }
 
+  // Things hung on walls go with their wall. The camera can now look at any
+  // wall, so any wall can be cut away — and a print left hanging in mid-air
+  // where its wall used to be reads as a rendering bug. Each wall collects the
+  // meshes mounted on it; the static ones are merged per wall (so this costs
+  // a handful of draw calls, not one per frame), the animated or clickable
+  // ones are simply linked and hidden alongside it.
+  const perWall = attachWallMounted(group, cutaway, exclude, doors);
+  for (const [entry, meshes] of perWall) {
+    const holder = new THREE.Group();
+    holder.name = 'wall_mounted';
+    for (const m of meshes) { m.updateWorldMatrix(true, false); holder.attach(m); }
+    mergeStatic(holder);
+    group.add(holder);
+    cutaway.attach(entry, holder);
+    holder.traverse((c) => exclude.add(c));
+  }
+
+  // And things overhead, in clusters, so the chase camera can see past them.
+  collectOverhead(group, cutaway, exclude, doors);
+
   // bucket the survivors by material and merge each bucket in place
   const buckets = new Map();
   group.traverse((o) => {
@@ -473,6 +496,110 @@ function mergeSceneStatics(group, { tick, interactables, cutaway, doors }) {
 
   const ms = Math.round(performance.now() - before);
   return { drawCallsSaved: saved, vertexLitMeshes: baked, ms };
+}
+
+/**
+ * Find everything hung on a wall — above the skirting, thin across the wall,
+ * and close to its face — and link it to that wall's cutaway entry. Returns a
+ * map of wall entry → static meshes still to be merged; excluded (animated or
+ * clickable) meshes are linked directly and left alone.
+ */
+function attachWallMounted(group, cutaway, exclude, doors) {
+  const walls = cutaway.walls.filter((w) => w.isWall);
+  for (const w of walls) {
+    w.mesh.updateWorldMatrix(true, false);
+    w.box = new THREE.Box3().setFromObject(w.mesh);
+  }
+  const skip = new Set(cutaway.walls.map((w) => w.mesh));
+  for (const id of Object.keys(doors)) doors[id].group.traverse((c) => skip.add(c));
+
+  const out = new Map();
+  const bb = new THREE.Box3();
+  const c = new THREE.Vector3();
+  const size = new THREE.Vector3();
+  const candidates = [];
+  group.updateMatrixWorld(true);
+  group.traverse((o) => {
+    if (!o.isMesh || skip.has(o) || o.userData.ceiling) return;
+    candidates.push(o);
+  });
+
+  for (const o of candidates) {
+    bb.setFromObject(o);
+    if (bb.isEmpty()) continue;
+    bb.getCenter(c); bb.getSize(size);
+    let best = null, bestD = Infinity;
+    for (const w of walls) {
+      const along = w.axis === 'x' ? 'z' : 'x';
+      const across = w.axis;
+      // hung, not standing: its bottom clears the skirting
+      if (bb.min.y < w.box.min.y + 0.55) continue;
+      if (c.y < w.box.min.y || c.y > w.box.max.y + 0.3) continue;
+      if (size[across] > 0.9) continue;
+      if (c[along] < w.box.min[along] - 0.2 || c[along] > w.box.max[along] + 0.2) continue;
+      const d = Math.abs(c[across] - w.coord);
+      if (d < 1.0 && d < bestD) { best = w; bestD = d; }
+    }
+    if (!best) continue;
+    if (exclude.has(o)) { cutaway.attach(best, o); continue; }
+    if (!out.has(best)) out.set(best, []);
+    out.get(best).push(o);
+  }
+  return out;
+}
+
+/**
+ * Gather everything hanging high in a room — pendants, bunting, beams,
+ * hanging plants — into clusters about five units across, merge each cluster,
+ * and register it with the cutaway as an occluder. Clustering keeps the draw
+ * calls down (a string of bunting is dozens of flags) while still letting the
+ * camera hide only the bit that is actually in the way.
+ */
+function collectOverhead(group, cutaway, exclude, doors) {
+  const skip = new Set(cutaway.walls.filter((w) => w.mesh).map((w) => w.mesh));
+  for (const w of cutaway.walls) for (const a of w.attached) a.traverse?.((c) => skip.add(c));
+  for (const id of Object.keys(doors)) doors[id].group.traverse((c) => skip.add(c));
+
+  const CELL = 5;
+  const cells = new Map();
+  const bb = new THREE.Box3();
+  const c = new THREE.Vector3();
+  const found = [];
+  group.updateMatrixWorld(true);
+  group.traverse((o) => {
+    if (!o.isMesh || skip.has(o) || o.userData.ceiling) return;
+    found.push(o);
+  });
+  for (const o of found) {
+    bb.setFromObject(o);
+    if (bb.isEmpty()) continue;
+    bb.getCenter(c);
+    const room = ROOMS.find((r) => c.x > r.x0 && c.x < r.x1 && c.z > r.z0 && c.z < r.z1
+      && c.y > r.y && c.y < r.y + r.h + 1);
+    if (!room) continue;
+    if (bb.min.y < room.y + 4.3) continue;                 // not overhead
+    // long is fine (the hall's beams are thirty units by half a unit); wide
+    // in both directions is a floor or a slab, and not ours to hide
+    if (bb.max.x - bb.min.x > 14 && bb.max.z - bb.min.z > 14) continue;
+    const key = `${room.id}|${Math.floor(c.x / CELL)}|${Math.floor(c.z / CELL)}`;
+    if (!cells.has(key)) cells.set(key, { box: new THREE.Box3(), statics: [], live: [] });
+    const cell = cells.get(key);
+    cell.box.union(bb);
+    (exclude.has(o) ? cell.live : cell.statics).push(o);
+  }
+  for (const [, cell] of cells) {
+    const objects = [...cell.live];
+    if (cell.statics.length) {
+      const holder = new THREE.Group();
+      holder.name = 'overhead';
+      for (const m of cell.statics) { m.updateWorldMatrix(true, false); holder.attach(m); }
+      mergeStatic(holder);
+      group.add(holder);
+      holder.traverse((x) => exclude.add(x));
+      objects.push(holder);
+    }
+    cutaway.addOccluder(objects, cell.box);
+  }
 }
 
 /**

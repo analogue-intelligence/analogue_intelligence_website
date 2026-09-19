@@ -21,6 +21,11 @@ export class ProximityManager {
     this.canActivate = () => true;      // main.js narrows this to lit rooms
     this.onDiscover = () => {};
     this.nearest = null;
+    // Only this many chips are shown at once. In the hall six plinths sit
+    // within reach of each other, and six full chips at once was a wall of
+    // text over the thing you were trying to look at. The nearest gets the
+    // full chip; the next two get a quiet name tag; the rest wait their turn.
+    this.maxChips = 3;
     this._raycaster = new THREE.Raycaster();
     this._v = new THREE.Vector3();
 
@@ -80,6 +85,15 @@ export class ProximityManager {
     let nearest = null, nearestD = Infinity;
     const R2 = this.revealRadius * this.revealRadius;
 
+    // rank what is in reach, so only the closest few get a chip
+    const inReach = [];
+    for (const it of this.items) {
+      const d2 = it.anchor.distanceToSquared(p);
+      if (d2 < R2 && Math.abs(it.anchor.y - p.y) < 4.5) inReach.push([it, d2]);
+    }
+    inReach.sort((a, b) => a[1] - b[1]);
+    const chipped = new Set(inReach.slice(0, this.maxChips).map((e) => e[0]));
+
     for (const it of this.items) {
       // Cheap rejection first: squared distance, no sqrt, and skip the DOM
       // entirely for the twenty-odd objects that are nowhere near you.
@@ -106,7 +120,7 @@ export class ProximityManager {
       if (it.revealed && !it.discovered) { it.discovered = true; this.onDiscover(it); }
 
       const el = it._label;
-      if (g > 0.04) {
+      if (g > 0.04 && (chipped.has(it) || !it.revealed)) {
         const s = this.engine.project(it.anchor, this._v);
         const onScreen = s.visible && s.x > -80 && s.x < window.innerWidth + 80;
         el.style.opacity = onScreen ? g.toFixed(2) : '0';

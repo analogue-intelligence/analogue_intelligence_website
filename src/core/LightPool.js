@@ -40,6 +40,7 @@ export class LightPool {
 
   /** Quality tiers change how many real lights we can afford. */
   setCount(n) {
+    if (n === this.slots.length) return;
     while (this.slots.length > n) {
       const s = this.slots.pop();
       if (s.lamp) s.lamp._slot = null;
@@ -47,8 +48,11 @@ export class LightPool {
       s.light.dispose?.();
     }
     while (this.slots.length < n) {
+      // Always visible, only ever dimmed. An invisible light is left out of the
+      // light count, and the light count is compiled into every shader — so
+      // switching lights on and off as you walked recompiled the whole scene,
+      // which was a visible freeze and on phones could cost the GPU context.
       const light = new THREE.PointLight(0xffffff, 0, 14, 2);
-      light.visible = false;
       this.scene.add(light);
       this.slots.push({ light, lamp: null, k: 0 });
     }
@@ -66,11 +70,10 @@ export class LightPool {
       const target = s.lamp ? 1 : 0;
       s.k += (target - s.k) * Math.min(dt * FADE, 1);
       if (s.k < 0.004) {
-        s.light.visible = false;
+        s.light.intensity = 0;
         if (s.pending) { this._bind(s, s.pending); s.pending = null; }
         continue;
       }
-      s.light.visible = true;
       s.light.intensity = (s.lamp?.intensity ?? 0) * s.k;
     }
   }

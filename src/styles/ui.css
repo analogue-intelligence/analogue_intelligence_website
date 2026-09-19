@@ -106,10 +106,25 @@ button, input { font: inherit; color: inherit; }
 .obj-label:hover .obj-key { color: var(--bone); border-color: var(--bone-dim); }
 .obj-label:active { transform-origin: center bottom; filter: brightness(1.15); }
 .obj-label.pop { animation: pop 260ms cubic-bezier(.2,1.4,.4,1); }
+/* Animates `scale`, not `transform`. The chip is positioned with an inline
+   transform, and a keyframe that also set transform replaced it for the length
+   of the animation — so every chip flashed up in the top-left corner of the
+   screen before jumping to its object. */
 @keyframes pop {
-  from { transform: translate(-50%, -120%) translate(var(--x,0), var(--y,0)) scale(0.88); }
+  from { scale: 0.88; }
 }
 .npc-label .obj-tag { font-style: italic; }
+
+/* Only the nearest chip is a full card. The others in reach shrink to a quiet
+   name tag, so the screen names what is around you without covering it. */
+.obj-label.is-live:not(.is-nearest):not(:hover) {
+  padding: 4px 9px 5px;
+  background: rgba(14, 18, 24, 0.62);
+  border-color: color-mix(in srgb, var(--accent) 28%, transparent);
+}
+.obj-label.is-live:not(.is-nearest):not(:hover) .obj-cat,
+.obj-label.is-live:not(.is-nearest):not(:hover) .obj-key { display: none; }
+.obj-label.is-live:not(.is-nearest):not(:hover) .obj-tag { font-size: 11px; font-weight: 600; opacity: 0.85; }
 
 /* -------------------------------------------------------------------- hud -- */
 .hud { position: fixed; inset: 0; pointer-events: none; transition: opacity 500ms; }
@@ -163,6 +178,9 @@ button, input { font: inherit; color: inherit; }
   font-family: var(--mono); font-size: 12px; color: rgba(231, 224, 210, 0.78);
   letter-spacing: 0.03em;
 }
+.hud-controls { transition: opacity 400ms, transform 400ms; }
+.hud-controls.tucked { opacity: 0; transform: translateY(8px); }
+.hud-controls-hint { color: rgba(231, 224, 210, 0.5); }
 .hud-controls b { color: #f4eee0; font-weight: 700; }
 .hud-q { font-style: normal; color: var(--accent); }
 .hud-q.flash { animation: qflash 900ms ease-out; }
@@ -511,16 +529,17 @@ button, input { font: inherit; color: inherit; }
 .touch-ui { position: fixed; inset: 0; pointer-events: none; z-index: 16; }
 .touch-ui.hidden { opacity: 0; pointer-events: none; }
 
-/* the thumbstick appears where your thumb lands, not in a fixed corner */
-.stick { position: fixed; width: 0; height: 0; pointer-events: none; }
-.stick[hidden] { display: none; }
+/* the drag pad appears where your finger (or mouse) lands, not in a fixed
+   corner: up walks forward, sideways turns */
+.drag-pad { position: fixed; width: 0; height: 0; pointer-events: none; z-index: 17; }
+.drag-pad[hidden] { display: none; }
 .stick-base,
 .stick-nub {
   position: absolute; left: 0; top: 0;
   border-radius: 50%; transform: translate(-50%, -50%);
 }
 .stick-base {
-  width: 132px; height: 132px;
+  width: 140px; height: 140px;
   background: rgba(18, 22, 28, 0.34);
   border: 1px solid rgba(231, 224, 210, 0.22);
   backdrop-filter: blur(2px);
@@ -1066,4 +1085,4 @@ body.is-touch { overscroll-behavior: none; }
 @keyframes bootBar {
   0% { transform: translateX(-110%); }
   100% { transform: translateX(320%); }
-}
+}

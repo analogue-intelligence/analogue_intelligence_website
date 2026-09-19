@@ -4,6 +4,11 @@ import { buildFigure } from './figure.js';
 // -----------------------------------------------------------------------------
 // Player — the visitor.
 //
+// Driven like a person rather than a cursor: a heading you turn, and a speed
+// that builds up and bleeds off instead of switching on and off. W is always
+// "the way I am facing"; the camera rides behind, so that is also "into the
+// screen".
+//
 // Movement is axis-separated so sliding along a wall feels right instead of
 // stopping dead, and every candidate position is checked against Nav, which
 // answers with a floor height or a refusal. Colliders carry the floor they sit
@@ -15,8 +20,13 @@ export class Player {
     this.nav = nav;
     // Brisk. The building is about a hundred units end to end, and at 7.6 the
     // walk between the two far rooms was long enough to be a chore.
-    this.speed = 9.4;
+    this.speed = 7.2;           // walking pace
+    this.runSpeed = 11.5;       // with Shift held
+    this.turnSpeed = 2.0;       // radians per second at full lock
     this.radius = 0.62;
+    this.heading = Math.PI;     // facing -z, toward the building
+    this._speed = 0;            // current signed speed along the heading
+    this._turn = 0;             // current turn rate
     this._targetY = 0;
     this._stepAccum = 0;
     this._t = 0;
@@ -45,7 +55,19 @@ export class Player {
   get position() { return this.group.position; }
   get y() { return this.group.position.y; }
 
-  setPosition(v) { this.group.position.copy(v); this._targetY = v.y; }
+  setPosition(v) { this.group.position.copy(v); this._targetY = v.y; this._speed = 0; }
+
+  /** Face a direction outright (radians, 0 = +z). */
+  setHeading(h) {
+    this.heading = h;
+    this.group.rotation.y = h;
+    this._turn = 0;
+  }
+
+  /** Unit vector the visitor is facing, on the floor plane. */
+  forward(out = new THREE.Vector3()) {
+    return out.set(Math.sin(this.heading), 0, Math.cos(this.heading));
+  }
 
   reveal() {
     this.revealed = true;
@@ -61,28 +83,40 @@ export class Player {
 
   update(dt, input) {
     this._t += dt;
-    let dir = input.moveVector();
-    if (dir) { input.moveTarget = null; }
-    else if (input.moveTarget) {
-      const to = input.moveTarget.clone().sub(this.group.position); to.y = 0;
-      if (to.length() < 0.35) input.moveTarget = null;
-      else dir = to.normalize();
-    }
+    const cmd = this.revealed ? input.drive() : null;
+    const throttle = cmd?.throttle ?? 0;
+    const turnIn = cmd?.turn ?? 0;
+    const top = cmd?.run ? this.runSpeed : this.speed;
+
+    // Turning eases in and out a little, so a tap of A is a small correction
+    // and holding it is a smooth pivot. D always swings you (and the view)
+    // to the right, whether you are walking forwards or stepping back.
+    this._turn += (turnIn - this._turn) * Math.min(dt * 12, 1);
+    this.heading -= this._turn * this.turnSpeed * dt;
+    this.heading = ((this.heading + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+    this.group.rotation.y = this.heading;
+
+    // Speed builds and bleeds off rather than snapping — backwards is slower.
+    const want = throttle >= 0 ? throttle * top : throttle * top * 0.55;
+    const rate = Math.abs(want) > Math.abs(this._speed) ? 7 : 10;
+    this._speed += (want - this._speed) * Math.min(dt * rate, 1);
+    if (Math.abs(this._speed) < 0.02 && !throttle) this._speed = 0;
 
     this.moving = false;
-    if (dir && this.revealed) {
-      const step = dir.clone().multiplyScalar(this.speed * dt);
-      const movedX = this._tryAxis('x', step.x);
-      const movedZ = this._tryAxis('z', step.z);
+    if (this._speed && this.revealed) {
+      const f = this.forward(_fwd);
+      const d = this._speed * dt;
+      const movedX = this._tryAxis('x', f.x * d);
+      const movedZ = this._tryAxis('z', f.z * d);
 
       if (movedX || movedZ) {
-        this.moving = true;
-        this._stepAccum += this.speed * dt;
+        this.moving = Math.abs(this._speed) > 0.6;
+        this._stepAccum += Math.abs(this._speed) * dt;
         if (this._stepAccum > 2.1) { this._stepAccum = 0; this.onFootstep(); }
+      } else {
+        // walked into something: stop pushing rather than skating on the spot
+        this._speed *= 0.5;
       }
-      const angle = Math.atan2(dir.x, dir.z);
-      this.group.rotation.y +=
-        ((angle - this.group.rotation.y + Math.PI * 3) % (Math.PI * 2) - Math.PI) * Math.min(dt * 11, 1);
     }
 
     this.group.position.y += (this._targetY - this.group.position.y) * Math.min(dt * 10, 1);
@@ -115,3 +149,5 @@ export class Player {
     return false;
   }
 }
+
+const _fwd = new THREE.Vector3();

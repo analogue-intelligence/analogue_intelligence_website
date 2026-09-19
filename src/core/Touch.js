@@ -1,29 +1,27 @@
 import { IS_TOUCH } from './Input.js';
 
 // -----------------------------------------------------------------------------
-// Touch.js — the phone.
+// Touch.js — the phone (and the drag pad everyone gets).
 //
 // The desktop build assumes three things a phone does not have: a keyboard for
 // movement, a hover state for "what am I pointing at", and a cursor precise
-// enough to hit a plinth from across a room. Everything here exists to replace
-// one of those without removing anything.
+// enough to hit a plinth from across a room. Everything here replaces one of
+// those without removing anything.
 //
-//   · a thumbstick, which appears wherever your left thumb lands rather than in
-//     a fixed corner — fixed sticks are only comfortable if you happen to hold
-//     the phone the way the designer does
+//   · drag to walk: put a finger down anywhere on the world and slide — up is
+//     forward, down is back, sideways turns. A ring appears under the finger
+//     so you can see how hard you are pushing. (Input.js does the driving;
+//     this file only draws it. A mouse drag works the same way on a laptop.)
 //   · a large action button carrying the E key, labelled with what it will act
-//     on, so "what am I pointing at" is answered before you press rather than
-//     after
-//   · pinch to zoom, because a 6-inch screen at desktop framing shows about
-//     four square metres of a seventy-metre building
+//     on, so "what am I pointing at" is answered before you press
+//   · pinch to pull the camera in or out
 //   · every keyboard shortcut also on a button, so nothing is desktop-only
 //
-// Tapping the world still works exactly as it does with a mouse: objects first,
-// then people, then walk there. Input.js decides what counts as a tap.
+// A quick tap on an exhibit or a person still opens it. A tap on bare floor
+// does nothing — it used to walk you there, which on a phone mostly meant
+// walking somewhere by accident.
 // -----------------------------------------------------------------------------
 
-const STICK_RADIUS = 62;      // px from centre to full deflection
-const DEAD_ZONE = 0.14;
 
 export class TouchControls {
   constructor(engine, input, root) {
@@ -33,6 +31,25 @@ export class TouchControls {
     this.onAction = () => {};
     this.onKey = () => {};
 
+    // The drag pad is drawn for every pointer type, so a laptop user who
+    // drags with the mouse sees the same thing a phone user does.
+    this.pad = document.createElement('div');
+    this.pad.className = 'drag-pad';
+    this.pad.hidden = true;
+    this.pad.innerHTML = '<div class="stick-base"></div><div class="stick-nub"></div>';
+    root.appendChild(this.pad);
+    const nub = this.pad.querySelector('.stick-nub');
+    input.onDragStart = (x, y) => {
+      this.pad.style.left = `${x}px`;
+      this.pad.style.top = `${y}px`;
+      nub.style.transform = 'translate(-50%, -50%)';
+      this.pad.hidden = false;
+    };
+    input.onDragMove = (dx, dy) => {
+      nub.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    };
+    input.onDragEnd = () => { this.pad.hidden = true; };
+
     if (!this.active) return;
 
     document.body.classList.add('is-touch');
@@ -40,10 +57,6 @@ export class TouchControls {
     this.el = document.createElement('div');
     this.el.className = 'touch-ui';
     this.el.innerHTML = `
-      <div class="stick" hidden>
-        <div class="stick-base"></div>
-        <div class="stick-nub"></div>
-      </div>
       <button class="tbtn tbtn-action" disabled>
         <span class="tbtn-verb">look</span>
         <span class="tbtn-target">nothing nearby</span>
@@ -63,8 +76,6 @@ export class TouchControls {
     `;
     root.appendChild(this.el);
 
-    this.stick = this.el.querySelector('.stick');
-    this.nub = this.el.querySelector('.stick-nub');
     this.actionBtn = this.el.querySelector('.tbtn-action');
     this.verbEl = this.el.querySelector('.tbtn-verb');
     this.targetEl = this.el.querySelector('.tbtn-target');
@@ -87,71 +98,21 @@ export class TouchControls {
       });
     }
 
-    this._bindStick();
     this._bindPinch();
-  }
-
-  /**
-   * The stick lives on the left half of the canvas and appears under the thumb.
-   * It deliberately does not capture taps: a press that never travels far
-   * enough falls through to Input as a tap on the world.
-   */
-  _bindStick() {
-    const canvas = this.engine.canvas;
-    let id = null, ox = 0, oy = 0, moved = false;
-
-    canvas.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'mouse' || id !== null) return;
-      if (e.clientX > window.innerWidth * 0.58) return;      // right side is for tapping
-      id = e.pointerId; ox = e.clientX; oy = e.clientY; moved = false;
-      this.stick.style.left = `${ox}px`;
-      this.stick.style.top = `${oy}px`;
-    });
-
-    canvas.addEventListener('pointermove', (e) => {
-      if (e.pointerId !== id) return;
-      let dx = e.clientX - ox, dy = e.clientY - oy;
-      const dist = Math.hypot(dx, dy);
-      if (!moved && dist < 10) return;                        // still might be a tap
-      if (!moved) { moved = true; this.stick.hidden = false; }
-
-      const clamped = Math.min(dist, STICK_RADIUS);
-      const nx = (dx / (dist || 1)) * clamped;
-      const ny = (dy / (dist || 1)) * clamped;
-      this.nub.style.transform = `translate(calc(-50% + ${nx}px), calc(-50% + ${ny}px))`;
-
-      const mag = clamped / STICK_RADIUS;
-      if (mag < DEAD_ZONE) { this.input.axis.x = 0; this.input.axis.y = 0; return; }
-      this.input.axis.x = (nx / STICK_RADIUS);
-      this.input.axis.y = (ny / STICK_RADIUS);
-      this.input.moveTarget = null;
-    });
-
-    const release = (e) => {
-      if (e.pointerId !== id) return;
-      id = null;
-      this.stick.hidden = true;
-      this.nub.style.transform = 'translate(-50%, -50%)';
-      this.input.axis.x = 0; this.input.axis.y = 0;
-    };
-    canvas.addEventListener('pointerup', release);
-    canvas.addEventListener('pointercancel', release);
   }
 
   /** Two fingers change the camera's framing, within sane limits. */
   _bindPinch() {
     const canvas = this.engine.canvas;
     const points = new Map();
-    let startDist = 0, startFrustum = 0;
+    let lastDist = 0;
 
     canvas.addEventListener('pointerdown', (e) => {
       if (e.pointerType === 'mouse') return;
       points.set(e.pointerId, e);
       if (points.size === 2) {
         const [a, b] = [...points.values()];
-        startDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-        startFrustum = this.engine.targetFrustum;
-        this.input.axis.x = 0; this.input.axis.y = 0;
+        lastDist = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
       }
     });
     canvas.addEventListener('pointermove', (e) => {
@@ -160,14 +121,12 @@ export class TouchControls {
       if (points.size !== 2) return;
       const [a, b] = [...points.values()];
       const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-      if (!startDist) return;
-      const f = Math.max(11, Math.min(34, startFrustum * (startDist / d)));
-      this.engine._zoomFromUser = true;
-      this.engine.setZoom(f);
-      this.engine._zoomFromUser = false;
-      this.engine.lockZoom = true;      // stop room entry overriding a manual choice
+      if (!lastDist || !d) return;
+      // fingers apart = closer in; the engine clamps and locks the choice
+      this.engine.zoomBy(lastDist / d);
+      lastDist = d;
     });
-    const drop = (e) => { points.delete(e.pointerId); if (points.size < 2) startDist = 0; };
+    const drop = (e) => { points.delete(e.pointerId); if (points.size < 2) lastDist = 0; };
     canvas.addEventListener('pointerup', drop);
     canvas.addEventListener('pointercancel', drop);
   }
@@ -196,4 +155,4 @@ export class TouchControls {
   }
 
   show(v) { if (this.active) this.el.classList.toggle('hidden', !v); }
-}
+}

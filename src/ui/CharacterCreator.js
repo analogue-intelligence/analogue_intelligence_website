@@ -8,7 +8,10 @@ import {
 // -----------------------------------------------------------------------------
 // CharacterCreator — the mirror in the porch.
 //
-// A second, tiny WebGL context showing nothing but the figure on a turntable,
+// A second, tiny WebGL context — created the first time the mirror is opened,
+// not at page load: a phone has a small budget of GPU contexts and memory, and
+// holding a second one for a panel most visitors never open was spending it on
+// nothing. It shows nothing but the figure on a turntable,
 // rebuilt from scratch whenever any option changes. Rebuilding is cheap here
 // (one chibi, a few dozen primitives) and it means the preview can never drift
 // out of sync with what the world will actually build.
@@ -65,7 +68,6 @@ export class CharacterCreator {
     root.appendChild(this.el);
 
     this.canvas = this.el.querySelector('.creator-canvas');
-    this._initPreview();
     this._buildControls();
     this._bind();
     this._sync();

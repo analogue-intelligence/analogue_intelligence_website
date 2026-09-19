@@ -65,12 +65,44 @@ export function setAnisotropy(n) { maxAniso = Math.max(1, Math.min(n, 16)); }
  * @param {string} name   file stem, e.g. 'wood_floor'
  * @param {object} opts   { repeat:[u,v], linear:boolean, rotation:number }
  */
+/**
+ * One image per file, however many ways it is tiled.
+ *
+ * This used to call loader.load() for every distinct (name, repeat) pair, so
+ * plaster tiled 4×2 and plaster tiled 8×3 were two downloads and two GPU
+ * uploads of the same picture — over a hundred textures for twenty-six files,
+ * which is a lot of memory to ask of a phone. Now each file is loaded once and
+ * every variant is a clone that shares its image (three.js shares the GPU
+ * texture between clones with the same source and sampler settings; repeat and
+ * rotation are shader uniforms, not texture state).
+ */
+const bases = new Map();       // name → { base, clones[] }
+
+function baseTexture(name) {
+  let b = bases.get(name);
+  if (b) return b;
+  b = { base: null, clones: [], loaded: false };
+  b.base = loader.load(`${BASE}${name}.png`, () => {
+    b.loaded = true;
+    // clones share the image, but each has its own version counter and has
+    // to be told the pixels have arrived
+    for (const c of b.clones) c.needsUpdate = true;
+  });
+  bases.set(name, b);
+  return b;
+}
+
 export function tex(name, opts = {}) {
   const [ru, rv] = opts.repeat ?? [1, 1];
   const key = `${name}|${ru}|${rv}|${opts.linear ? 'lin' : 'srgb'}|${opts.rotation ?? 0}`;
   if (cache.has(key)) return cache.get(key);
 
-  const t = loader.load(`${BASE}${name}.png`);
+  const b = baseTexture(name);
+  const t = b.base.clone();
+  b.clones.push(t);
+  // clone() marks the copy for upload straight away, before there is any
+  // image to upload; reset that and let the load callback do it
+  if (b.loaded) t.needsUpdate = true; else t.version = 0;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.repeat.set(ru, rv);
   t.anisotropy = maxAniso;

@@ -104,8 +104,9 @@ export function buildPartners(ctx) {
       color: '#dff0f4', transparent: true, opacity: 0.17,
       roughness: 0.06, metalness: 0.1, side: THREE.DoubleSide,
     }));
-  dome.position.set(CX, 1.08, -5.6);
-  ctx.add(dome, 0, 0, 0);
+  // ctx.add() sets the position, so give it the real one — with zeros the
+  // dome ended up at the world origin, in the middle of the hall
+  ctx.add(dome, CX, 1.08, -5.6);
   ctx.lamp(0xfff0d0, CX, 3.6, -5.6, { intensity: 9, distance: 9, size: 2.4, opacity: 0.3 });
 
   // --- the table you would actually sit at --------------------------------

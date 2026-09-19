@@ -130,8 +130,18 @@ export class Minimap {
     const outside = px < 4 || px > this.canvas.width - 4 || pz < 4 || pz > this.canvas.height - 4;
     px = Math.max(4, Math.min(this.canvas.width - 4, px));
     pz = Math.max(4, Math.min(this.canvas.height - 4, pz));
+    // an arrow rather than a dot, because which way you are facing is now
+    // what W means
+    const h = this.player.heading ?? Math.PI;
+    const fx = Math.sin(h), fz = Math.cos(h);
+    const sz = outside ? 4 : 5.5;
     g.fillStyle = outside ? 'rgba(244,231,200,0.55)' : '#f4e7c8';
-    g.beginPath(); g.arc(px, pz, outside ? 2.4 : 3.2, 0, 7); g.fill();
+    g.beginPath();
+    g.moveTo(px + fx * sz * 1.3, pz + fz * sz * 1.3);
+    g.lineTo(px - fx * sz * 0.7 + fz * sz * 0.8, pz - fz * sz * 0.7 - fx * sz * 0.8);
+    g.lineTo(px - fx * sz * 0.3, pz - fz * sz * 0.3);
+    g.lineTo(px - fx * sz * 0.7 - fz * sz * 0.8, pz - fz * sz * 0.7 + fx * sz * 0.8);
+    g.closePath(); g.fill();
     g.strokeStyle = 'rgba(20,24,30,0.9)'; g.lineWidth = 1.2; g.stroke();
 
     this.label.textContent = here ? here.name : 'Outside';
