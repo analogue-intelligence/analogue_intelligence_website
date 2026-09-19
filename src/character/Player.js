@@ -22,7 +22,7 @@ export class Player {
     // walk between the two far rooms was long enough to be a chore.
     this.speed = 7.2;           // walking pace
     this.runSpeed = 11.5;       // with Shift held
-    this.turnSpeed = 2.0;       // radians per second at full lock
+    this.turnSpeed = 1.5;       // radians per second at full lock
     this.radius = 0.62;
     this.heading = Math.PI;     // facing -z, toward the building
     this._speed = 0;            // current signed speed along the heading
