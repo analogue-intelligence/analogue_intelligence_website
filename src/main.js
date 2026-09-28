@@ -220,6 +220,16 @@ const raise = () => {
     engine.scene.add(n.group);
   }
 
+  // How big the building is today. The "you have seen all of them"
+  // achievements are measured against these, so adding a room, an object or a
+  // colleague re-opens the matching achievement instead of leaving it ticked.
+  achievements.syncTotals({
+    rooms: rooms.rooms.length,
+    readables: READABLE,
+    exhibits: HALL_EXHIBITS.length,
+    people: npcs.npcs.length,
+  });
+
   // ---------------------------------------------------------- interactions --
   proximity.onActivate = (it) => {
     read.add(it.id);

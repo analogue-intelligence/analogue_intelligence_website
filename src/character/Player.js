@@ -4,10 +4,12 @@ import { buildFigure } from './figure.js';
 // -----------------------------------------------------------------------------
 // Player — the visitor.
 //
-// Driven like a person rather than a cursor: a heading you turn, and a speed
-// that builds up and bleeds off instead of switching on and off. W is always
-// "the way I am facing"; the camera rides behind, so that is also "into the
-// screen".
+// Driven like a person rather than a cursor: a heading (which the camera
+// rides behind), and a velocity that builds up and bleeds off instead of
+// switching on and off. W is "into the screen", A and D sidestep left and
+// right without turning the camera, and dragging turns the heading. When you
+// sidestep, the figure turns its body toward where it is going, but the
+// heading — and so the view — stays put.
 //
 // Movement is axis-separated so sliding along a wall feels right instead of
 // stopping dead, and every candidate position is checked against Nav, which
@@ -22,11 +24,13 @@ export class Player {
     // walk between the two far rooms was long enough to be a chore.
     this.speed = 7.2;           // walking pace
     this.runSpeed = 11.5;       // with Shift held
-    this.turnSpeed = 1.5;       // radians per second at full lock
+    this.turnSpeed = 2.9;       // radians per second at full lock
     this.radius = 0.62;
     this.heading = Math.PI;     // facing -z, toward the building
-    this._speed = 0;            // current signed speed along the heading
+    this._vel = new THREE.Vector2();   // local velocity: x = right, y = forward
+    this._speed = 0;            // |velocity|, kept for anything that reads it
     this._turn = 0;             // current turn rate
+    this._bodyYaw = 0;          // body offset from the heading while sidestepping
     this._targetY = 0;
     this._stepAccum = 0;
     this._t = 0;
@@ -55,13 +59,14 @@ export class Player {
   get position() { return this.group.position; }
   get y() { return this.group.position.y; }
 
-  setPosition(v) { this.group.position.copy(v); this._targetY = v.y; this._speed = 0; }
+  setPosition(v) { this.group.position.copy(v); this._targetY = v.y; this._speed = 0; this._vel?.set(0, 0); }
 
   /** Face a direction outright (radians, 0 = +z). */
   setHeading(h) {
     this.heading = h;
     this.group.rotation.y = h;
     this._turn = 0;
+    this._bodyYaw = 0;
   }
 
   /** Unit vector the visitor is facing, on the floor plane. */
@@ -85,6 +90,7 @@ export class Player {
     this._t += dt;
     const cmd = this.revealed ? input.drive() : null;
     const throttle = cmd?.throttle ?? 0;
+    const strafe = cmd?.strafe ?? 0;
     const turnIn = cmd?.turn ?? 0;
     const top = cmd?.run ? this.runSpeed : this.speed;
 
@@ -94,28 +100,47 @@ export class Player {
     this._turn += (turnIn - this._turn) * Math.min(dt * 12, 1);
     this.heading -= this._turn * this.turnSpeed * dt;
     this.heading = ((this.heading + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-    this.group.rotation.y = this.heading;
 
-    // Speed builds and bleeds off rather than snapping — backwards is slower.
-    const want = throttle >= 0 ? throttle * top : throttle * top * 0.55;
-    const rate = Math.abs(want) > Math.abs(this._speed) ? 7 : 10;
-    this._speed += (want - this._speed) * Math.min(dt * rate, 1);
-    if (Math.abs(this._speed) < 0.02 && !throttle) this._speed = 0;
+    // The wanted velocity in the visitor's own frame. Diagonals are not
+    // faster than straight lines; stepping back and sideways is a little
+    // slower than walking forward, the way people move.
+    let wx = strafe, wy = throttle;
+    const len = Math.hypot(wx, wy);
+    if (len > 1) { wx /= len; wy /= len; }
+    wx *= top * 0.8;
+    wy *= wy >= 0 ? top : top * 0.55;
+    const accel = Math.hypot(wx, wy) > this._vel.length() ? 7 : 10;
+    const k = Math.min(dt * accel, 1);
+    this._vel.x += (wx - this._vel.x) * k;
+    this._vel.y += (wy - this._vel.y) * k;
+    if (this._vel.lengthSq() < 0.0004 && !throttle && !strafe) this._vel.set(0, 0);
+    this._speed = this._vel.length();
+
+    // The body leans into a sidestep: it turns toward where it is going
+    // (never all the way round when backing off), while the heading — and the
+    // camera behind it — stays where it was.
+    const wantYaw = this._speed > 0.3 && Math.abs(this._vel.x) > 0.05
+      ? Math.atan2(-this._vel.x, Math.abs(this._vel.y)) : 0;
+    this._bodyYaw += (wantYaw - this._bodyYaw) * Math.min(dt * 10, 1);
+    this.group.rotation.y = this.heading + this._bodyYaw;
 
     this.moving = false;
     if (this._speed && this.revealed) {
       const f = this.forward(_fwd);
-      const d = this._speed * dt;
-      const movedX = this._tryAxis('x', f.x * d);
-      const movedZ = this._tryAxis('z', f.z * d);
+      // right of the heading, on the floor: (-cos h, 0, sin h)
+      const rx = -f.z, rz = f.x;
+      const dx = (f.x * this._vel.y + rx * this._vel.x) * dt;
+      const dz = (f.z * this._vel.y + rz * this._vel.x) * dt;
+      const movedX = this._tryAxis('x', dx);
+      const movedZ = this._tryAxis('z', dz);
 
       if (movedX || movedZ) {
-        this.moving = Math.abs(this._speed) > 0.6;
-        this._stepAccum += Math.abs(this._speed) * dt;
+        this.moving = this._speed > 0.6;
+        this._stepAccum += this._speed * dt;
         if (this._stepAccum > 2.1) { this._stepAccum = 0; this.onFootstep(); }
       } else {
         // walked into something: stop pushing rather than skating on the spot
-        this._speed *= 0.5;
+        this._vel.multiplyScalar(0.5);
       }
     }
 

@@ -153,6 +153,27 @@ button, input { font: inherit; color: inherit; }
   text-transform: uppercase; color: rgba(231, 224, 210, 0.75); margin-top: 4px;
 }
 
+/* The way out to the reading version. The front door offers both, but someone
+   who walked in and now just wants the facts should not have to reload the
+   page to find them. It is the one clickable thing in the HUD, so it opts
+   itself back into pointer events. */
+.hud-page {
+  display: inline-block; margin-top: 9px;
+  pointer-events: auto;
+  font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.1em;
+  text-transform: uppercase; text-decoration: none;
+  color: rgba(231, 224, 210, 0.6);
+  border-bottom: 1px solid rgba(231, 224, 210, 0.2);
+  padding-bottom: 2px;
+  transition: color 200ms, border-color 200ms;
+}
+.hud-page:hover { color: #ffe7ae; border-bottom-color: var(--accent); }
+
+/* A phone reaches the plain page through the tray button instead, so the link
+   does not take a third line out of the corner on the smallest screens. */
+body.is-touch .hud-page { display: none; }
+@media (max-width: 720px) { .hud-page { display: none; } }
+
 .hud-room { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); }
 .hud-room-name {
   display: inline-block;
@@ -921,10 +942,11 @@ body.is-touch { overscroll-behavior: none; }
 /* Top-left, directly under the group's name.
    It sat above the control list, at a bottom offset guessed from that list's
    height — and the list is seven lines long, so the two overlapped. Anchoring
-   to the top means it depends only on the brand block, which is a fixed two
-   lines, and nothing below it can ever grow into it. */
+   to the top means it depends only on the brand block, which is a fixed
+   height, and nothing below it can ever grow into it. The offset now clears
+   the link out to the plain page, which is the brand block's third line. */
 .ach-count {
-  position: absolute; top: 104px; left: 22px; pointer-events: auto;
+  position: absolute; top: 132px; left: 22px; pointer-events: auto;
   display: flex; align-items: center; gap: 8px;
   padding: 9px 14px;
   background: rgba(16, 20, 26, 0.66);
@@ -989,7 +1011,7 @@ body.is-touch { overscroll-behavior: none; }
 }
 
 .ach-panel {
-  position: absolute; top: 146px; left: 22px;
+  position: absolute; top: 174px; left: 22px;
   width: min(330px, 84vw); max-height: 66vh; overflow-y: auto;
   padding: 14px 16px 16px;
   background: rgba(14, 18, 24, 0.94);
@@ -1085,4 +1107,88 @@ body.is-touch { overscroll-behavior: none; }
 @keyframes bootBar {
   0% { transform: translateX(-110%); }
   100% { transform: translateX(320%); }
-}
+}
+
+/* ===========================================================================
+   The front door.
+
+   Shown before either version of the site loads, so it has to stand on its own
+   with nothing but this stylesheet: no canvas, no three.js, no data.
+   =========================================================================== */
+/* the canvas is on top of the interface layer, so it stands aside until a
+   version has been chosen */
+body.choosing #scene { display: none; }
+
+.chooser {
+  position: fixed; inset: 0; z-index: 90;
+  pointer-events: auto;
+  display: grid; place-items: center;
+  padding: 24px;
+  overflow: auto;
+  background:
+    radial-gradient(900px 500px at 70% -10%, rgba(201, 162, 74, 0.16), transparent 60%),
+    radial-gradient(700px 460px at 0% 20%, rgba(79, 125, 147, 0.14), transparent 62%),
+    #12161c;
+  opacity: 0; transition: opacity 420ms ease;
+}
+.chooser.on { opacity: 1; }
+.chooser.leaving { opacity: 0; pointer-events: none; }
+
+.chooser-card {
+  width: min(880px, 100%);
+  text-align: center;
+  color: #e7e0d2;
+  transform: translateY(14px);
+  transition: transform 520ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.chooser.on .chooser-card { transform: none; }
+
+.chooser-mark { width: 76px; margin: 0 auto 20px; }
+.chooser-mark img {
+  width: 100%; height: auto; display: block; border-radius: 14px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.38);
+  animation: ch-breathe 8s ease-in-out infinite;
+}
+@keyframes ch-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.045); }
+}
+
+.chooser-card h1 {
+  margin: 0; font-family: 'Syne', Georgia, serif; font-weight: 800;
+  font-size: clamp(26px, 5vw, 44px); letter-spacing: -0.02em;
+}
+.chooser-sub {
+  margin: 8px 0 0; font-family: 'Newsreader', Georgia, serif; font-style: italic;
+  color: rgba(231, 224, 210, 0.7); font-size: clamp(15px, 2.2vw, 19px);
+}
+.chooser-lead {
+  margin: 22px 0 26px; font-size: 14px; letter-spacing: 0.02em;
+  color: rgba(231, 224, 210, 0.62);
+}
+
+.chooser-options { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); text-align: left; }
+.chooser-opt {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 24px 24px 22px;
+  border: 1px solid rgba(231, 224, 210, 0.16); border-radius: 16px;
+  background: rgba(231, 224, 210, 0.05);
+  color: inherit; font: inherit; cursor: pointer; text-align: left;
+  transition: transform 220ms, border-color 220ms, background 220ms, box-shadow 220ms;
+}
+.chooser-opt:hover, .chooser-opt:focus-visible {
+  transform: translateY(-3px); border-color: rgba(201, 162, 74, 0.65);
+  background: rgba(231, 224, 210, 0.09);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35); outline: none;
+}
+.chooser-opt.is-last { border-color: rgba(201, 162, 74, 0.4); }
+.chooser-kicker { font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.22em; text-transform: uppercase; color: #c9a24a; }
+.chooser-title { font-family: 'Syne', Georgia, serif; font-weight: 700; font-size: 23px; }
+.chooser-body { font-size: 14px; line-height: 1.6; color: rgba(231, 224, 210, 0.72); }
+.chooser-go { margin-top: 6px; font-size: 13.5px; font-weight: 600; color: #e7e0d2; }
+.chooser-note { margin: 22px 0 0; font-size: 12px; color: rgba(231, 224, 210, 0.4); }
+
+@media (prefers-reduced-motion: reduce) {
+  .chooser, .chooser-card, .chooser-opt { transition: none; }
+  .chooser-mark img { animation: none; }
+}

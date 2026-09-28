@@ -1,0 +1,216 @@
+/* ---------------------------------------------------------------------------
+   plain.css — the reading version.
+
+   Same palette and same typefaces as the building, so the two feel like one
+   place, but laid out for a reader: one column of prose on a phone, two or
+   three cards across on a desk, generous line length, and nothing that has to
+   be waited for.
+
+   The only motion is a rise-on-arrival for each block, a rule that draws
+   itself under each heading, and the nested squares breathing in the header.
+   Every one of them is disabled under prefers-reduced-motion.
+   --------------------------------------------------------------------------- */
+
+/* The building's layout pins everything to the viewport (fixed canvas, fixed
+   interface layer, no page scroll). The reading version is an ordinary
+   document again, so all of that is handed back. */
+html:has(body.mode-page), body.mode-page {
+  height: auto;
+  overflow: visible;
+  background: var(--paper, #efe7d7);
+  color: #2b2620;
+}
+body.mode-page #scene { display: none; }
+body.mode-page #ui-root { position: static; inset: auto; pointer-events: auto; }
+
+.plain {
+  --ink: #2b2620;
+  --ink-soft: #5d5346;
+  --paper: #efe7d7;
+  --paper-2: #f7f1e4;
+  --line: rgba(43, 38, 32, 0.14);
+  --gold: #c9822f;
+  display: block;
+  background:
+    radial-gradient(1200px 600px at 78% -8%, rgba(201, 162, 74, 0.16), transparent 60%),
+    radial-gradient(900px 520px at 4% 12%, rgba(79, 125, 147, 0.12), transparent 62%),
+    var(--paper);
+  min-height: 100vh;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.plain a { color: inherit; }
+
+/* ------------------------------------------------------------------ top bar */
+.p-top {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; align-items: center; gap: 22px;
+  padding: 14px clamp(16px, 4vw, 54px);
+  background: color-mix(in srgb, var(--paper) 86%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid transparent;
+  transition: border-color 300ms, background 300ms;
+}
+.p-top.scrolled { border-bottom-color: var(--line); background: color-mix(in srgb, var(--paper) 95%, transparent); }
+.p-wordmark { display: flex; align-items: center; gap: 10px; text-decoration: none; font-family: 'Syne', Georgia, serif; font-weight: 700; letter-spacing: -0.01em; }
+.p-wordmark img { width: 24px; height: 24px; border-radius: 5px; display: block; }
+.p-wordmark span { font-size: 15px; }
+.p-nav { display: flex; gap: 18px; margin-left: auto; flex-wrap: wrap; }
+.plain .p-nav a {
+  text-decoration: none; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-soft); padding: 4px 0; border-bottom: 1px solid transparent; transition: color 200ms, border-color 200ms;
+}
+.plain .p-nav a:hover, .plain .p-nav a.on { color: var(--ink); border-bottom-color: var(--gold); }
+.plain a.p-switch {
+  text-decoration: none; font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+  padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--paper-2); transition: transform 200ms, border-color 200ms;
+}
+.plain a.p-switch:hover { transform: translateY(-1px); border-color: var(--gold); }
+@media (max-width: 860px) {
+  .p-nav { display: none; }
+  .p-switch { margin-left: auto; }
+}
+
+/* ---------------------------------------------------------------------- hero */
+.p-hero {
+  display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: clamp(20px, 4vw, 56px); align-items: center;
+  max-width: 1180px; margin: 0 auto;
+  padding: clamp(48px, 8vw, 104px) clamp(16px, 4vw, 54px) clamp(36px, 6vw, 72px);
+}
+.p-hero-mark { width: 100%; max-width: 380px; margin-left: auto; opacity: 0.55; pointer-events: none; }
+@media (max-width: 860px) {
+  .p-hero { grid-template-columns: 1fr; }
+  .p-hero-mark { display: none; }
+}
+.p-hero-mark rect { fill: none; stroke-width: 10; }
+.p-hero-mark .h1 { stroke: rgba(201, 130, 47, 0.5); animation: breathe 9s ease-in-out infinite; }
+.p-hero-mark .h2 { stroke: rgba(79, 125, 147, 0.5); animation: breathe 9s ease-in-out infinite 0.6s; }
+.p-hero-mark .h3 { stroke: rgba(138, 90, 160, 0.45); animation: breathe 9s ease-in-out infinite 1.2s; }
+.p-hero-mark .h4 { stroke: rgba(94, 138, 106, 0.6); animation: breathe 9s ease-in-out infinite 1.8s; }
+@keyframes breathe {
+  0%, 100% { transform: scale(1); opacity: 0.75; }
+  50% { transform: scale(1.035); opacity: 1; }
+}
+.p-hero-mark svg rect { transform-origin: 50% 50%; }
+
+.p-kicker { margin: 0 0 12px; font-family: 'Space Mono', monospace; font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase; color: var(--gold); }
+.p-hero h1 { margin: 0; font-family: 'Syne', Georgia, serif; font-weight: 800; font-size: clamp(30px, 5vw, 54px); line-height: 1.04; letter-spacing: -0.02em; max-width: 16ch; }
+.p-sub { margin: 12px 0 22px; font-family: 'Newsreader', Georgia, serif; font-size: clamp(16px, 2vw, 21px); color: var(--ink-soft); max-width: 40ch; }
+.p-lead { max-width: 62ch; margin: 0 0 16px; font-size: clamp(15px, 1.5vw, 17px); line-height: 1.66; color: #3b342b; }
+.p-hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 30px; }
+.plain a.p-btn {
+  display: inline-block; text-decoration: none; font-weight: 600; font-size: 14px;
+  padding: 11px 20px; border-radius: 999px; background: #2b2620; color: var(--paper-2);
+  border: 1px solid #2b2620; transition: transform 180ms, box-shadow 180ms;
+}
+.plain a.p-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(43, 38, 32, 0.18); }
+.plain a.p-btn.ghost { background: transparent; color: var(--ink); border-color: var(--line); }
+.plain a.p-btn.ghost:hover { border-color: var(--gold); }
+
+/* ------------------------------------------------------------------ sections */
+.p-section { max-width: 1180px; margin: 0 auto; padding: clamp(34px, 5vw, 66px) clamp(16px, 4vw, 54px); }
+.p-section + .p-section { border-top: 1px solid var(--line); }
+.p-section-head h2 { margin: 0; font-family: 'Syne', Georgia, serif; font-weight: 700; font-size: clamp(22px, 2.8vw, 31px); letter-spacing: -0.015em; }
+/* a short rule that draws itself once the heading arrives */
+.p-section-head { position: relative; padding-top: 16px; }
+.p-section-head::before {
+  content: ''; position: absolute; top: 0; left: 0; height: 2px; width: 0;
+  background: var(--gold); transition: width 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 80ms;
+}
+.p-section-head.in::before { width: 64px; }
+.p-section-lead { margin: 10px 0 0; max-width: 68ch; color: var(--ink-soft); font-size: clamp(14px, 1.4vw, 16px); line-height: 1.6; }
+
+/* Each section says how many columns it wants (--cols) and carries that many
+   cards, so a row is never left with a single card sitting on its own. Two and
+   one both divide 2, 3 and 4 evenly, so the same holds at every width. */
+.p-grid {
+  display: grid; gap: clamp(14px, 1.6vw, 20px);
+  grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr));
+  margin-top: 22px; align-items: stretch;
+}
+@media (max-width: 1040px) { .p-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 660px)  { .p-grid { grid-template-columns: 1fr; } }
+
+.p-card {
+  position: relative; overflow: hidden;
+  display: flex; flex-direction: column;
+  background: var(--paper-2);
+  border: 1px solid var(--line); border-radius: 12px;
+  padding: 20px 20px 22px;
+  transition: border-color 220ms, box-shadow 220ms;
+}
+.p-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--accent, var(--gold)); opacity: 0.9; }
+.p-card:hover { box-shadow: 0 10px 24px rgba(43, 38, 32, 0.08); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.p-card-cat { margin: 0 0 8px; font-family: 'Space Mono', monospace; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent, var(--gold)); }
+.p-card h3 { margin: 0 0 6px; font-family: 'Syne', Georgia, serif; font-weight: 700; font-size: 20px; }
+.p-card-sub { margin: 0 0 10px; font-family: 'Newsreader', Georgia, serif; color: var(--ink-soft); font-size: 15px; }
+.p-card p { margin: 0 0 11px; font-size: 14.5px; line-height: 1.62; color: #3b342b; }
+.p-card p:last-of-type { margin-bottom: 0; }
+.plain a.p-card-action {
+  display: inline-block; margin-top: auto; padding-top: 14px; text-decoration: none; font-weight: 600; font-size: 13.5px;
+  color: var(--accent, var(--gold)); border-bottom: 1px solid transparent; transition: border-color 200ms;
+}
+.p-card-action:hover { border-bottom-color: currentColor; }
+
+
+
+.p-card-brief { padding: 18px 18px 20px; }
+.p-card-brief h3 { font-size: 17px; }
+.p-card-brief p { font-size: 14px; }
+
+
+
+.p-person {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 20px; border: 1px solid var(--line); border-radius: 12px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, var(--paper-2)), var(--paper-2));
+  transition: transform 260ms, box-shadow 260ms;
+}
+.p-person:hover { box-shadow: 0 10px 24px rgba(43, 38, 32, 0.08); }
+.p-person-dot { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); opacity: 0.9; margin-bottom: 8px; }
+.p-person h3 { margin: 0; font-family: 'Syne', Georgia, serif; font-size: 19px; }
+.p-person-role { margin: 0; color: var(--ink-soft); font-size: 13.5px; }
+
+/* facilities, plain text under a heading rather than a card */
+.p-item { padding: 16px 0 0; border-top: 1px solid var(--line); }
+.p-item h3 { margin: 0 0 5px; font-family: 'Syne', Georgia, serif; font-size: 16px; }
+.p-item p { margin: 0; color: var(--ink-soft); font-size: 14px; line-height: 1.55; }
+
+/* contact, one band across the page */
+.p-contact { max-width: none; background: #241f1a; color: #efe7d7; margin-top: 10px; }
+.p-contact-inner { max-width: 1180px; margin: 0 auto; padding: clamp(10px, 2vw, 22px) 0; }
+.p-contact h2 { margin: 0 0 14px; font-family: 'Syne', Georgia, serif; font-weight: 700; font-size: clamp(22px, 2.8vw, 31px); }
+.p-contact p { max-width: 62ch; margin: 0 0 12px; line-height: 1.62; color: rgba(239, 231, 215, 0.82); font-size: 15px; }
+.p-contact .p-hero-actions { margin-top: 22px; }
+.plain .p-contact a.p-btn { background: #efe7d7; color: #241f1a; border-color: #efe7d7; }
+.plain .p-contact a.p-btn.ghost { background: transparent; color: #efe7d7; border-color: rgba(239, 231, 215, 0.35); }
+
+/* -------------------------------------------------------------------- footer */
+.p-foot {
+  border-top: 1px solid var(--line); margin-top: 40px;
+  padding: 40px clamp(16px, 4vw, 54px) 60px; text-align: center; color: var(--ink-soft); font-size: 13.5px;
+}
+.p-foot p { margin: 0 0 6px; }
+.p-foot-links { display: flex; flex-wrap: wrap; gap: 18px; justify-content: center; }
+.p-foot-title { font-family: 'Syne', Georgia, serif; font-weight: 700; color: var(--ink); font-size: 16px; }
+.plain .p-foot a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+.p-foot a:hover { border-bottom-color: var(--gold); }
+
+/* -----------------------------------------------------------arrival motion
+   The hidden state is applied only once the script has taken charge of
+   revealing things (.has-motion). If anything goes wrong before that — a
+   failed import, a browser without IntersectionObserver — the page is a
+   perfectly ordinary readable document rather than a blank one. */
+.plain.has-motion .reveal { opacity: 0; transform: translateY(18px); transition: opacity 620ms ease, transform 620ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.plain.has-motion .reveal.in { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal, .p-card, .p-person, .plain a.p-btn, .plain a.p-switch { transition: none !important; }
+  .plain.has-motion .reveal { opacity: 1; transform: none; }
+  .p-section-head::before { transition: none; width: 64px; }
+  .p-hero-mark rect { animation: none; }
+}

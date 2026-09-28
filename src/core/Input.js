@@ -8,13 +8,13 @@ import * as THREE from 'three';
 //
 //   W / ↑   walk forward, the way you are facing
 //   S / ↓   step back
-//   A / ←   turn left        D / →   turn right
+//   A / ←   step left        D / →   step right   (the camera keeps facing)
 //   Shift   hurry
 //
-// Dragging does the same job with a finger or a mouse. Put a finger down
-// anywhere on the world and slide: up walks forward, down walks back, sideways
-// turns — the further you slide, the harder it goes, like a thumbstick that
-// appears wherever you touch. There is no click-to-walk any more: on a phone a
+// Turning is done by dragging. Put a finger (or the mouse) down anywhere on
+// the world and slide: up walks forward, down walks back, sideways turns you
+// and the camera — the further you slide, the harder it goes, like a
+// thumbstick that appears wherever you touch. There is no click-to-walk any more: on a phone a
 // tap on the floor was far too easy to fire by accident, and it fought the
 // drag for the same gesture.
 //
@@ -184,22 +184,22 @@ export class Input {
 
   /**
    * What the visitor is being asked to do this frame, in their own frame of
-   * reference: { throttle: -1..1 (forward +), turn: -1..1 (right +), run }.
+   * reference: { throttle: -1..1 (forward +), strafe: -1..1 (right +),
+   * turn: -1..1 (right +), run }. The keys walk and sidestep; the drag walks
+   * and turns.
    * Returns null when there is nothing to do.
    */
   drive() {
     if (!this.enabled) return null;
-    let throttle = 0, turn = 0;
+    let throttle = 0, strafe = 0;
     if (FORWARD.some((k) => this.keys.has(k))) throttle += 1;
     if (BACK.some((k) => this.keys.has(k))) throttle -= 1;
-    if (LEFT.some((k) => this.keys.has(k))) turn -= 1;
-    if (RIGHT.some((k) => this.keys.has(k))) turn += 1;
-    throttle += this.axis.throttle;
-    turn += this.axis.turn;
-    throttle = THREE.MathUtils.clamp(throttle, -1, 1);
-    turn = THREE.MathUtils.clamp(turn, -1, 1);
-    if (!throttle && !turn) return null;
-    return { throttle, turn, run: RUN.some((k) => this.keys.has(k)) };
+    if (LEFT.some((k) => this.keys.has(k))) strafe -= 1;
+    if (RIGHT.some((k) => this.keys.has(k))) strafe += 1;
+    throttle = THREE.MathUtils.clamp(throttle + this.axis.throttle, -1, 1);
+    const turn = THREE.MathUtils.clamp(this.axis.turn, -1, 1);
+    if (!throttle && !turn && !strafe) return null;
+    return { throttle, strafe, turn, run: RUN.some((k) => this.keys.has(k)) };
   }
 
   /** Fire a bound key handler from somewhere other than the keyboard. */

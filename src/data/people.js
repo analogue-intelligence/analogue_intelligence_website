@@ -28,7 +28,7 @@ export const CURATOR = {
   },
   greeting: [
     'Welcome to Analogue Intelligence.',
-    'Walk with <b>W A S D</b> or the <b>arrow keys</b>, or click anywhere on the floor. Objects light up when you are close — press <b>E</b> or click to read one.',
+    'Walk with <b>W A S D</b> or the <b>arrow keys</b> — W walks the way you are facing, A and D step sideways, and dragging turns you. Objects light up when you are close: press <b>E</b> or tap one to read it.',
     'The Classroom is the door on your left \u2014 that is where the open lectures happen, and anyone can come to those. Through the double doors ahead is the Hall of Fame. The Research Lab is the long room to the west \u2014 robotics and studio share it, which people always ask about. The Partners Room is east, and the library is up the stairs at the back.',
   ],
   questions: [
@@ -65,7 +65,7 @@ export const CURATOR = {
     {
       q: 'How do I get around?',
       answer: [
-        '<b>W A S D</b> or the <b>arrow keys</b> to walk. Click the floor to head somewhere. <b>E</b> reads whatever you are standing next to.',
+        '<b>W</b> walks forward, <b>S</b> steps back, <b>A</b> and <b>D</b> step sideways, and dragging with a finger or the mouse turns you. <b>E</b> reads whatever you are standing next to.',
         'Doors open as you approach them. The stairs at the back-right of the Hall of Fame go up to the library.',
         '<b>C</b> reopens the mirror by the door if you want to change how you look. <b>P</b> toggles the painted finish, and <b>Q</b> steps the graphics down if your machine is labouring.',
       ],
@@ -78,7 +78,7 @@ export const MEMBERS = [
   {
     id: 'member_ioana',
     name: 'Ioana-Teodora',
-    role: 'Reinforcement learning · embodied navigation',
+    role: 'Master Student (AI), Teaching Assistant VU Amsterdam',
     accent: '#4f7d93',
     room: 'lab',
     appearance: {
@@ -144,38 +144,6 @@ export const MEMBERS = [
       {
         q: 'What brought you here?',
         answer: ['Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.'],
-      },
-    ],
-  },
-
-  {
-    id: 'member_banno',
-    name: 'Banno',
-    role: 'Lecturer · Artificial Intelligence, VU Amsterdam',
-    accent: '#5e8a5a',
-    room: 'hall',
-    appearance: {
-      skin: '#8d5524', hairStyle: 'bob', hairColor: '#241c14',
-      coat: '#5e6b3e', trousers: '#3f4a44', accessory: 'none', build: 'regular', height: 1.01,
-    },
-    patrol: [[0, 0, 8], [-6, 0, 3], [-5, 0, -7], [3, 0, -6], [4, 0, 6]],
-    // ⚠ PLACEHOLDER — for Banno to write.
-    greeting: [
-      'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-      'Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.',
-    ],
-    questions: [
-      {
-        q: 'What do you teach?',
-        answer: ['Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.', 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'],
-      },
-      {
-        q: 'What are you working on?',
-        answer: ['Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.'],
-      },
-      {
-        q: 'What should I look at here?',
-        answer: ['Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium.', 'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.'],
       },
     ],
   },

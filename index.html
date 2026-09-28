@@ -12,6 +12,11 @@
   <title>Analogue Intelligence Lab</title>
   <meta name="description" content="An explorable building for the Analogue Intelligence Lab: a hall of projects, a robotics lab, a creative studio and a library." />
 
+  <!-- the mark in the tab, in bookmarks, and on a phone home screen -->
+  <link rel="icon" type="image/png" sizes="64x64" href="./assets/logo-64.png" />
+  <link rel="icon" type="image/png" sizes="632x632" href="./assets/logo.png" />
+  <link rel="apple-touch-icon" href="./assets/logo.png" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
@@ -36,7 +41,8 @@
 
   <noscript>
     <div style="padding:40px;font-family:sans-serif;color:#e7e0d2">
-      This site is a 3D building. It needs JavaScript to stand up.
+      This site needs JavaScript — both the explorable building and the plain
+      reading version are built in the browser.
     </div>
   </noscript>
 
@@ -117,9 +123,11 @@
         report(stack || e.reason, 'unhandled promise rejection');
       });
 
-      // Last resort: if the module never runs at all, say so.
+      // Last resort: if the module never runs at all, say so. The front door
+      // sets window.AI_MODE when a version is actually chosen — before that
+      // the page is *meant* to be sitting there waiting for a click.
       setTimeout(function () {
-        if (!window.AI && !shown) {
+        if (!window.AI && !shown && window.AI_MODE) {
           report('main.js did not finish loading within 15 seconds.',
             'Most often this is the import map: three.js is fetched from jsDelivr, so the first load needs a network connection. Vendor it locally if you are working offline — see the README.');
         }
@@ -127,6 +135,6 @@
     })();
   </script>
 
-  <script type="module" src="./src/main.js"></script>
+  <script type="module" src="./src/boot.js"></script>
 </body>
 </html>

@@ -259,7 +259,7 @@ export class Prologue {
     // Both, always. Deciding by `pointer: coarse` got this wrong on every
     // touchscreen laptop, which is most of them — people were shown the phone
     // instructions while sitting at a keyboard.
-    this._tut('<b>W</b> / <b>↑</b> walk forward · <b>A D</b> / <b>← →</b> turn'
+    this._tut('<b>W</b> / <b>↑</b> walk · <b>A D</b> / <b>← →</b> step sideways · <b>drag</b> to turn'
       + '<i class="pro-alt">on a phone, drag on the screen: up to walk, sideways to turn</i>');
   }
 

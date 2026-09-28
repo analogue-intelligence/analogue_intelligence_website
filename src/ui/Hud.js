@@ -13,18 +13,20 @@ export class Hud {
       <div class="hud-brand">
         <div class="hud-title">${TITLE}</div>
         <div class="hud-sub">${SUBTITLE}</div>
+        <a class="hud-page" href="?mode=page">Read the plain page &rarr;</a>
       </div>
       <div class="hud-room"><span class="hud-room-name"></span></div>
       <div class="hud-controls">
         <span><b>W</b> / <b>↑</b> forward · <b>S</b> / <b>↓</b> back</span>
-        <span><b>A D</b> / <b>← →</b> turn · <b>Shift</b> hurry</span>
-        <span><b>drag</b> to walk · <b>wheel</b> zoom</span>
+        <span><b>A D</b> / <b>← →</b> step sideways · <b>Shift</b> hurry</span>
+        <span><b>drag</b> to turn and walk · <b>wheel</b> zoom</span>
         <span><b>E</b> read · talk</span>
         <span><b>C</b> change your character</span>
         <span><b>M</b> map</span>
         <span><b>Q</b> quality <i class="hud-q">medium</i></span>
         <span><b>F</b> performance</span>
         <span class="hud-controls-hint"><b>H</b> hide this</span>
+        <span class="hud-controls-hint">the plain page is linked top-left</span>
       </div>
       <div class="hud-prompt"></div>
     `;

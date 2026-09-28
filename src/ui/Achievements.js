@@ -13,6 +13,20 @@
 // -----------------------------------------------------------------------------
 
 const KEY = 'analogue-intelligence:found';
+const SCOPE_KEY = 'analogue-intelligence:scope';
+
+// The achievements that mean "you have seen all of X". They are the only ones
+// whose meaning changes when the building changes: earning "read everything"
+// against eleven objects does not mean you have read the fourteen that are
+// there now. Each one is listed with the count it was measured against, and if
+// that count grows the achievement is handed back so it can be earned again.
+const AGGREGATE = {
+  room_all: 'rooms',
+  read_all: 'readables',
+  read_10: 'readables',
+  read_projects: 'exhibits',
+  talk_all: 'people',
+};
 
 export const ACHIEVEMENTS = [
   // --- the rooms ----------------------------------------------------------
@@ -83,12 +97,62 @@ export class Achievements {
     this._renderCount();
   }
 
+  /**
+   * Load, and drop anything that is no longer an achievement.
+   *
+   * Progress is kept in the browser, so a visitor who was here before an
+   * achievement was renamed or removed carried the dead id around forever.
+   * The count is the size of that set, so it read 17/16 and no amount of
+   * playing could fix it. Unknown ids are discarded on the way in.
+   */
   _load() {
-    try { return JSON.parse(window.localStorage?.getItem(KEY) ?? '[]'); } catch { return []; }
+    let stored = [];
+    try { stored = JSON.parse(window.localStorage?.getItem(KEY) ?? '[]'); } catch { return []; }
+    if (!Array.isArray(stored)) return [];
+    const known = new Set(ACHIEVEMENTS.map((a) => a.id));
+    const kept = stored.filter((id) => known.has(id));
+    if (kept.length !== stored.length) {
+      try { window.localStorage?.setItem(KEY, JSON.stringify(kept)); } catch { /* private mode */ }
+    }
+    return kept;
   }
 
   _save() {
     try { window.localStorage?.setItem(KEY, JSON.stringify([...this.got])); } catch { /* private mode */ }
+  }
+
+  /**
+   * Tell the list how big the building is now, so the "all of them"
+   * achievements stay honest as content is added.
+   *
+   * main.js counts the rooms, readable objects, hall exhibits and people as it
+   * builds them and passes the numbers here. Each is remembered next to the
+   * achievement it belongs to. If a number has grown since the achievement was
+   * earned, the achievement is returned to the list, and the visitor earns it
+   * again by reading the new things. If a number has shrunk (something was
+   * removed) the achievement stands, because they did see everything there was.
+   */
+  syncTotals(totals = {}) {
+    let scope = {};
+    try { scope = JSON.parse(window.localStorage?.getItem(SCOPE_KEY) ?? '{}') || {}; } catch { /* private mode */ }
+
+    let changed = false;
+    for (const [id, field] of Object.entries(AGGREGATE)) {
+      const now = totals[field];
+      if (typeof now !== 'number') continue;
+      const then = scope[id];
+      if (this.got.has(id) && typeof then === 'number' && now > then) {
+        this.got.delete(id);
+        changed = true;
+      }
+      // the size is only recorded while the achievement is actually held
+      if (this.got.has(id)) scope[id] = now;
+    }
+    this._scope = { scope, totals };
+    try { window.localStorage?.setItem(SCOPE_KEY, JSON.stringify(scope)); } catch { /* private mode */ }
+    if (changed) this._save();
+    this._renderCount();
+    this._renderList();
   }
 
   has(id) { return this.got.has(id); }
@@ -99,6 +163,13 @@ export class Achievements {
     const def = ACHIEVEMENTS.find((a) => a.id === id);
     if (!def || this.got.has(id)) return false;
     this.got.add(id);
+    // remember how big the building was when this was earned, so adding to it
+    // later re-opens the achievement rather than leaving a stale tick
+    const field = AGGREGATE[id];
+    if (field && this._scope) {
+      this._scope.scope[id] = this._scope.totals[field];
+      try { window.localStorage?.setItem(SCOPE_KEY, JSON.stringify(this._scope.scope)); } catch { /* private mode */ }
+    }
     this._save();
     this._toast(def);
     this._renderCount();
@@ -175,6 +246,13 @@ export class Achievements {
 
   show(v) { this.el.classList.toggle('hidden', !v); }
 
-  /** Wipe progress — useful while authoring. */
-  reset() { this.got.clear(); this._save(); this._renderCount(); this._renderList(); }
+  /** Wipe progress. Useful while authoring: AI.achievements.reset(). */
+  reset() {
+    this.got.clear();
+    this._save();
+    try { window.localStorage?.removeItem(SCOPE_KEY); } catch { /* private mode */ }
+    this._scope = this._scope ? { scope: {}, totals: this._scope.totals } : null;
+    this._renderCount();
+    this._renderList();
+  }
 }

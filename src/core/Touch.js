@@ -71,6 +71,7 @@ export class TouchControls {
           <button class="tbtn tbtn-small" data-key="q"><i>◐</i><em>Quality</em></button>
           <button class="tbtn tbtn-small" data-key="n"><i>♪</i><em>Sound</em></button>
           <button class="tbtn tbtn-small" data-key="f"><i>◱</i><em>Stats</em></button>
+          <button class="tbtn tbtn-small" data-go="page"><i>▤</i><em>Plain page</em></button>
         </div>
       </div>
     `;
@@ -89,6 +90,18 @@ export class TouchControls {
     this.menuEl = this.el.querySelector('.tbtn-menu');
     this.toggleEl = this.el.querySelector('.tbtn-toggle');
     this.toggleEl.addEventListener('click', (e) => { e.preventDefault(); this.toggleMenu(); });
+
+    // The way out to the reading version, for a phone that has no top-left
+    // corner to spare. It leaves the building, so it asks first.
+    for (const b of this.el.querySelectorAll('[data-go]')) {
+      b.addEventListener('click', (e) => {
+        e.preventDefault();
+        this.toggleMenu(false);
+        if (confirm('Leave the building and read the plain page instead?')) {
+          location.href = '?mode=page';
+        }
+      });
+    }
 
     for (const b of this.el.querySelectorAll('[data-key]')) {
       b.addEventListener('click', (e) => {
@@ -155,4 +168,4 @@ export class TouchControls {
   }
 
   show(v) { if (this.active) this.el.classList.toggle('hidden', !v); }
-}
+}
