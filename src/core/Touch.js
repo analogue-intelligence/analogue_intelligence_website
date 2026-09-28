@@ -168,4 +168,4 @@ export class TouchControls {
   }
 
   show(v) { if (this.active) this.el.classList.toggle('hidden', !v); }
-}
+}
