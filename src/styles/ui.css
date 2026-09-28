@@ -1109,14 +1109,6 @@ body.is-touch { overscroll-behavior: none; }
   100% { transform: translateX(320%); }
 }
 
-/* ===========================================================================
-   The front door.
-
-   Shown before either version of the site loads, so it has to stand on its own
-   with nothing but this stylesheet: no canvas, no three.js, no data.
-   =========================================================================== */
-/* the canvas is on top of the interface layer, so it stands aside until a
-   version has been chosen */
 body.choosing #scene { display: none; }
 
 .chooser {
