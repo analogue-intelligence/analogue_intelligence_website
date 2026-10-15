@@ -81,16 +81,16 @@ export const SECTIONS = [
     style: 'brief',
     cards: [
       {
+        kicker: 'Creative technology',
+        title: 'Creative technology',
+        body: 'Generative systems, computer vision and interaction design used as research instruments that produce evidence.',
+        accent: '#8a5aa0',
+      },
+      {
         kicker: 'Software engineering',
         title: 'Software engineering',
         body: 'How systems are designed, tested and maintained when they have to run for a long time and change often.',
         accent: '#c97a3a',
-      },
-      {
-        kicker: 'Artificial intelligence',
-        title: 'Artificial intelligence',
-        body: 'Learning systems that remain understandable after they leave the benchmark they were measured on.',
-        accent: '#b4547e',
       },
       {
         kicker: 'Robotics',
@@ -99,10 +99,10 @@ export const SECTIONS = [
         accent: '#4f7d93',
       },
       {
-        kicker: 'Creative technology',
-        title: 'Creative technology',
-        body: 'Generative systems, computer vision and interaction design used as research instruments that produce evidence.',
-        accent: '#8a5aa0',
+        kicker: 'Artificial intelligence',
+        title: 'Artificial intelligence',
+        body: 'Learning systems that remain understandable after they leave the benchmark they were measured on.',
+        accent: '#b4547e',
       },
     ],
   },

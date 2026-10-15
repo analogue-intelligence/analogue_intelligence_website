@@ -117,7 +117,7 @@ export const MEMBERS = [
 
   {
     id: 'member_mauricio',
-    name: 'Mauricio',
+    name: 'Mauricio Verano Merino',
     role: 'Assistant Professor · VU Amsterdam',
     accent: '#c97a3a',
     room: 'lab',
