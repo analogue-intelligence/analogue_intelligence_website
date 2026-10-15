@@ -76,6 +76,38 @@ export const CURATOR = {
 
 export const MEMBERS = [
   {
+    id: 'member_mauricio',
+    name: 'Mauricio Verano Merino',
+    role: 'Assistant Professor · VU Amsterdam',
+    accent: '#c97a3a',
+    room: 'lab',
+    appearance: {
+      skin: '#b87642', hairStyle: 'crop', hairColor: '#3a2a1c',
+      coat: '#c9822f', trousers: '#4a3a2a', accessory: 'none', build: 'regular', height: 1.04,
+    },
+    patrol: [[-46, 0, 3], [-54, 0, 3], [-55, 0, -4], [-47, 0, -5]],
+    // ⚠ PLACEHOLDER — for Mauricio to write.
+    greeting: [
+      'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+      'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
+    ],
+    questions: [
+      {
+        q: 'What do you work on?',
+        answer: ['Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.', 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'],
+      },
+      {
+        q: 'Where can I read your work?',
+        answer: ['You can find my work on my personal website.'],
+        action: { label: 'maveme.github.io →', href: 'https://maveme.github.io/' },
+      },
+      {
+        q: 'What brought you here?',
+        answer: ['Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.'],
+      },
+    ],
+  },
+  {
     id: 'member_ioana',
     name: 'Ioana-Teodora',
     role: 'Master Student (AI), Teaching Assistant VU Amsterdam',
@@ -111,39 +143,6 @@ export const MEMBERS = [
           'Through the creative side, oddly. I was making generative work before I was training policies, and the two turned out to be the same question asked with different tooling.',
           'Which is more or less the argument this whole group is built on, so I fitted.',
         ],
-      },
-    ],
-  },
-
-  {
-    id: 'member_mauricio',
-    name: 'Mauricio Verano Merino',
-    role: 'Assistant Professor · VU Amsterdam',
-    accent: '#c97a3a',
-    room: 'lab',
-    appearance: {
-      skin: '#b87642', hairStyle: 'crop', hairColor: '#3a2a1c',
-      coat: '#c9822f', trousers: '#4a3a2a', accessory: 'none', build: 'regular', height: 1.04,
-    },
-    patrol: [[-46, 0, 3], [-54, 0, 3], [-55, 0, -4], [-47, 0, -5]],
-    // ⚠ PLACEHOLDER — for Mauricio to write.
-    greeting: [
-      'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-      'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
-    ],
-    questions: [
-      {
-        q: 'What do you work on?',
-        answer: ['Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.', 'Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.'],
-      },
-      {
-        q: 'Where can I read your work?',
-        answer: ['You can find my work on my personal website.'],
-        action: { label: 'maveme.github.io →', href: 'https://maveme.github.io/' },
-      },
-      {
-        q: 'What brought you here?',
-        answer: ['Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.', 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.'],
       },
     ],
   },
