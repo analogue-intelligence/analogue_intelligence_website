@@ -61,6 +61,14 @@ export const SECTIONS = [
         action: { label: 'Read the code', href: 'daedalus' },
         accent: '#8a5aa0',
       },
+      {
+        kicker: 'Creative technology',
+        title: 'FOUNDMUSIC',
+        sub: 'Transforming found sounds with granular synthesis',
+        body: 'Micro-sound grains extracted from everyday audio recordings are analyzed via DSP audio descriptors and synthesized using Markov Chain transition matrices to generate acoustically diverse soundscapes.',
+        action: {  },
+        accent: '#8a5aa0',
+      },
     ],
   },
 
