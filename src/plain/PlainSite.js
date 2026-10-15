@@ -103,7 +103,7 @@ export class PlainSite {
         <p class="p-foot-title">${esc(LAB.name)}</p>
         <p>${esc(LAB.affiliation)}</p>
         <p class="p-foot-links">
-          <a href="${EMAIL}">hello@analogue-intelligence.org</a>
+          <a href="${EMAIL}">m.verano.merino@vu.nl</a>
           <a href="${ORG}" target="_blank" rel="noopener">github.com/analogue-intelligence</a>
           <a href="?mode=building">Explorable version</a>
         </p>
@@ -175,7 +175,7 @@ export class PlainSite {
           <h2>${esc(CONTACT.title)}</h2>
           ${CONTACT.body.map((b) => `<p>${esc(b)}</p>`).join('')}
           <div class="p-hero-actions">
-            <a class="p-btn" href="${EMAIL}">hello@analogue-intelligence.org</a>
+            <a class="p-btn" href="${EMAIL}">m.verano.merino@vu.nl</a>
             <a class="p-btn ghost" href="?mode=building">Visit the lab</a>
           </div>
         </div>

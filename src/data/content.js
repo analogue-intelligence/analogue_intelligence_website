@@ -10,7 +10,7 @@
 // -----------------------------------------------------------------------------
 
 export const ORG = 'https://github.com/analogue-intelligence';
-export const EMAIL = 'mailto:hello@analogue-intelligence.org';
+export const EMAIL = 'mailto:m.verano.merino@vu.nl';
 
 export const CATEGORIES = {
   vision: { label: 'The Lab', color: '#c9a24a' },

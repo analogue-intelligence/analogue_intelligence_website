@@ -35,7 +35,7 @@ export const GUIDE = {
         'Gladly. We take on students for theses and projects, and collaborate with researchers, industry, and artists.',
         'The notice board near the entrance has the details — or just reach out.',
       ],
-      action: { label: 'Get in touch →', href: 'mailto:hello@analogue-intelligence.org' },
+      action: { label: 'Get in touch →', href: 'mailto:m.verano.merino@vu.nl' },
     },
     {
       q: 'How do I move around again?',
