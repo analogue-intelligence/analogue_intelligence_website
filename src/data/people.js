@@ -145,5 +145,43 @@ export const MEMBERS = [
         ],
       },
     ],
+  },{
+    id: 'member_ahmad',
+    name: 'Ahmad',
+    role: 'Master Student (AI), Teaching Assistant VU Amsterdam',
+    accent: '#4f7d93',
+    room: 'lab',
+    appearance: {
+      skin: '#d99b6c', hairStyle: 'crop', hairColor: '#1c1712',
+      coat: '#4f6472', trousers: '#2c333d', accessory: 'glasses', build: 'regular', height: 1.0,
+    },
+    patrol: [[-19, 0, 4], [-24, 0, 3], [-24, 0, -5], [-19, 0, -6]],
+    greeting: [
+      'Oh — hello. Mind the tape on the floor, the cage is live.',
+      'I work on Game Development.',
+    ],
+    questions: [
+      {
+        q: 'What are you working on?',
+        answer: [
+          '',
+          '',
+        ],
+      },
+      {
+        q: 'Does it work?',
+        answer: [
+          '',
+          '',
+        ],
+      },
+      {
+        q: 'How did you end up here?',
+        answer: [
+          '',
+          '',
+        ],
+      },
+    ],
   },
 ];
