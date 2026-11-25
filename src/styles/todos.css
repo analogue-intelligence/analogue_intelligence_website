@@ -54,10 +54,35 @@
 .t-body { position: relative; flex: 1; display: flex; flex-direction: column; padding: 22px 20px 18px; }
 .t-project h3 { font-size: 21px; }
 .t-project .t-body > p { color: #3b342b; }
-.t-counts { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 12px; font-size: 12px; color: var(--ink-soft); }
-.t-counts .late { color: #a8432d; font-weight: 600; }
-.t-score { display: flex; align-items: baseline; gap: 10px; margin-top: auto; padding-top: 18px; }
-.t-big { font-family: 'Syne', Georgia, serif; font-weight: 800; font-size: 30px; line-height: 1; letter-spacing: -0.02em; }
+
+/* the todos in miniature: open ones a line each, done ones as small tags */
+.t-mini { list-style: none; margin: 14px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.t-mini li { display: flex; align-items: center; gap: 8px; font-size: 13px; line-height: 1.35; color: #3b342b; }
+.t-mini-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; border: 1.5px solid var(--accent); }
+.t-mini li.doing .t-mini-dot { background: linear-gradient(90deg, var(--accent) 50%, transparent 50%); }
+.t-key {
+  align-self: flex-start; font-family: 'Space Mono', monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+  padding: 1px 7px; margin-bottom: 8px; border-radius: 5px; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.t-card .t-key { display: inline-block; margin-bottom: 6px; }
+.t-popup-head .t-key { margin: 0; font-size: 13px; padding: 3px 9px; }
+.t-mini-key { flex: none; min-width: 5.5ch; font-family: 'Space Mono', monospace; font-size: 10.5px; font-weight: 700; color: var(--accent); }
+.t-mini-done b { font-family: 'Space Mono', monospace; font-weight: 700; }
+.t-mini li.doing .t-mini-title { font-weight: 600; }
+.t-mini-title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-mini-due { flex: none; font-family: 'Space Mono', monospace; font-size: 10.5px; color: var(--ink-soft); }
+.t-mini-due.late { color: #a8432d; font-weight: 700; }
+.t-mini-done { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+.t-mini-done span {
+  max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: 10.5px; line-height: 1.5; padding: 0 7px; border-radius: 999px;
+  background: rgba(43, 38, 32, 0.06); color: var(--ink-soft);
+  text-decoration: line-through; text-decoration-color: rgba(43, 38, 32, 0.3);
+}
+.t-mini-done span::before { content: '✓ '; text-decoration: none; display: inline-block; margin-right: 3px; color: var(--accent); }
+.t-mini-none { margin: 14px 0 0 !important; font-size: 12.5px !important; font-style: italic; color: var(--ink-soft) !important; }
+.t-score { display: flex; align-items: baseline; gap: 10px; margin-top: auto; padding-top: 16px; }
+.t-big { font-family: 'Syne', Georgia, serif; font-weight: 800; font-size: 26px; line-height: 1; letter-spacing: -0.02em; }
 
 /* while dragging: the block left behind is a dashed slot, a copy follows the cursor */
 .t-project.t-placeholder { border: 2px dashed rgba(43, 38, 32, 0.25); background: transparent; box-shadow: none; }
@@ -154,6 +179,9 @@ body.t-grabbing, body.t-grabbing * { cursor: grabbing !important; }
 .t-swatch-opt input:checked + span { box-shadow: 0 0 0 2px #2b2620; }
 .t-swatch-opt input:focus-visible + span { outline: 2px solid #c9822f; outline-offset: 3px; }
 
+.t-row.t-row-key { grid-template-columns: minmax(0, 1fr) 110px; }
+.t-dialog input[name="key"] { font-family: 'Space Mono', monospace; text-transform: uppercase; letter-spacing: 0.08em; }
+.t-form-note { margin: -6px 0 0; font-size: 12.5px; color: #5d5346; }
 .t-form-error { margin: 0; color: #a8432d; font-size: 13.5px; }
 .t-actions { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
 .t-spacer { flex: 1; }
@@ -162,3 +190,67 @@ body.t-grabbing, body.t-grabbing * { cursor: grabbing !important; }
   .t-fill, .t-bar span, .t-project, .t-btn { transition: none; }
   .t-dialog[open] { animation: none; }
 }
+
+/* --------------------------------------------------------------- people
+   The dashboard is two columns: the project blocks, and a People column that
+   stays in view while the blocks scroll past. On narrow screens it drops
+   below the blocks. */
+.todos .p-section.t-head { max-width: 1480px; }
+.t-layout {
+  display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: clamp(16px, 2vw, 28px); align-items: start;
+  max-width: 1480px; margin: 0 auto; padding: clamp(28px, 4vw, 48px) clamp(16px, 4vw, 54px) 60px;
+}
+.t-layout .p-section.t-projects { padding: 0; margin: 0; max-width: none; }
+@media (max-width: 1000px) { .t-layout { grid-template-columns: 1fr; } }
+
+.t-people {
+  position: sticky; top: 72px; max-height: calc(100vh - 88px); overflow: auto;
+  background: var(--paper-2); border: 1px solid var(--line); border-radius: 12px; padding: 16px 16px 18px;
+}
+@media (max-width: 1000px) { .t-people { position: static; max-height: none; } }
+.t-people-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.t-people-head h2 { margin: 0; font-family: 'Syne', Georgia, serif; font-size: 19px; }
+.t-btn.small { padding: 6px 12px; font-size: 12.5px; }
+
+.t-person { padding: 12px 0; border-top: 1px solid var(--line); }
+.t-person:first-child { border-top: 0; }
+.t-person-head {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 0; border: 0; background: none;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+div.t-person-head { cursor: default; }
+.t-person-head:hover .t-person-name { text-decoration: underline; text-decoration-color: var(--pc); text-underline-offset: 3px; }
+.t-person-name { font-family: 'Syne', Georgia, serif; font-weight: 700; font-size: 15px; }
+.t-person-count { margin-left: auto; font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; }
+.t-person .t-mini { margin-top: 8px; gap: 4px; }
+.t-person .t-mini li { font-size: 12.5px; cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: 0 -4px; }
+.t-person .t-mini li:hover { background: rgba(43, 38, 32, 0.06); }
+.t-person-free { margin: 6px 0 0; font-size: 12px; font-style: italic; color: var(--ink-soft); }
+.t-unassigned .t-person-name { color: var(--ink-soft); }
+
+/* initials */
+.t-av {
+  display: inline-grid; place-items: center; flex: none; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--pc); color: #fff; font: 700 9px/1 'Space Grotesk', system-ui, sans-serif; letter-spacing: 0;
+}
+.t-av.big { width: 26px; height: 26px; font-size: 11.5px; }
+.t-avs { display: inline-flex; flex: none; }
+.t-avs .t-av { width: 16px; height: 16px; font-size: 8.5px; box-shadow: 0 0 0 1.5px var(--paper-2); }
+.t-avs .t-av + .t-av { margin-left: -4px; }
+
+/* a todo's people in the popup */
+.t-owner[style*="--pc"]::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--pc); margin-right: 6px; vertical-align: 1px; }
+
+/* picking people in the todo form */
+.t-row.t-row-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.t-pick { margin: 0; padding: 0; border: 0; }
+.t-pick legend { padding: 0; margin-bottom: 8px; font: 11px 'Space Mono', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #5d5346; }
+.t-pick [data-people-pick] { display: flex; flex-wrap: wrap; gap: 8px; }
+.t-dialog label.t-pick-opt { display: block; cursor: pointer; text-transform: none; letter-spacing: 0; font: 13.5px 'Space Grotesk', system-ui, sans-serif; color: #2b2620; }
+.t-pick-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.t-pick-opt > span {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px 5px 6px; border-radius: 999px;
+  border: 1px solid rgba(43, 38, 32, 0.18); background: #fffaf0; transition: background-color 150ms, border-color 150ms;
+}
+.t-pick-opt input:checked + span { border-color: var(--pc); background: color-mix(in srgb, var(--pc) 16%, #fffaf0); font-weight: 600; }
+.t-pick-opt input:focus-visible + span { outline: 2px solid #c9822f; outline-offset: 2px; }

@@ -1,6 +1,6 @@
 # Lab todo board
 
-The unlisted page at `?mode=todos` reads and writes `lab.projects` and `lab.todos` directly from the
+The unlisted page at `?mode=todos` reads and writes `lab.projects`, `lab.todos`, `lab.people` and `lab.todo_assignees` directly from the
 browser. A browser cannot open a Postgres connection, so
 [PostgREST](https://postgrest.org) runs beside Postgres on the lab machine and
 serves the tables over HTTP on port 3000. No code of ours runs there.
@@ -20,6 +20,13 @@ They are set in `ENDPOINTS` at the top of `src/todos/TodoBoard.js`.
 
    ```
    psql -h 192.168.137.1 -U postgres -v authpw="<pick a password>" -f db/schema.sql
+   ```
+
+   Then the migrations, in order:
+
+   ```
+   psql -h 192.168.137.1 -U postgres -f db/002_keys.sql
+   psql -h 192.168.137.1 -U postgres -f db/003_people.sql
    ```
 
 2. Download `postgrest-vX.Y.Z-windows-x64.zip` from
@@ -50,5 +57,17 @@ Check it: `curl https://desktop-d7ungo1.tail30fcd7.ts.net/todos`.
 
 ## Security
 
-`web_anon` can read, add, edit and delete projects and todos, and do nothing else. Anyone who
+`web_anon` can read, add, edit and delete projects, todos and people, and do nothing else. Anyone who
 can reach port 3000 can do the same. Keep the port off the public internet.
+
+## Identifiers
+
+Every project has a short key (`LAB`) and every todo a number within its
+project, so todos read as `LAB-3`: short enough to say out loud. Numbers are
+never reused. A todo's key is computed, not stored, so renaming a project's key
+renames its todos too.
+
+```
+curl 'https://desktop-d7ungo1.tail30fcd7.ts.net/todos?key=eq.LAB-3&select=*,key'
+curl 'https://desktop-d7ungo1.tail30fcd7.ts.net/projects?key=eq.LAB&select=*,todos(*,key)'
+```

@@ -42,6 +42,8 @@ const hexRgb = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
 const rgba = (c, a) => `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${a})`;
 
 const esc = (s) => String(s ?? '').replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]));
+/** "Ahmad" -> "A", "Ahmad Ramadan" -> "AR". */
+const initials = (name) => name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 const today = () => new Date().toISOString().slice(0, 10);
 const calm = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
@@ -80,6 +82,7 @@ export class TodoBoard {
   constructor(root = document.getElementById('ui-root')) {
     this.root = root;
     this.projects = [];      // in dashboard order, each with its todos embedded
+    this.people = [];        // everyone who can be given a todo, by name
     this.api = null;
     this.openId = null;      // the project whose popup is showing
     this.dragging = false;
@@ -98,10 +101,14 @@ export class TodoBoard {
 
     el.querySelector('[data-retry]').addEventListener('click', () => this._connect());
     el.querySelector('[data-new-project]').addEventListener('click', () => this._editProject(null));
+    el.querySelector('[data-new-person]').addEventListener('click', () => this._editPerson(null));
+    this.peopleList = el.querySelector('.t-people-list');
+    this.peopleList.addEventListener('click', (e) => this._onPeopleClick(e));
     this._gridEvents();
     this._popup();
     this._projectDialog();
     this._todoDialog();
+    this._personDialog();
     this._connect();
   }
 
@@ -131,7 +138,7 @@ export class TodoBoard {
           <h1>Projects</h1>
           <button class="t-btn" type="button" data-new-project disabled>+ New project</button>
         </div>
-        <p class="t-hint">Drag a block to reorder. Click it to see its todos.</p>
+        <p class="t-hint">Drag a block to reorder. Click it to see its todos. People and what they are on are on the right.</p>
         <div class="t-error" hidden>
           <p><strong>Could not reach the lab database.</strong> This page only works on the lab network or over Tailscale.</p>
           <p class="t-error-detail"></p>
@@ -139,7 +146,16 @@ export class TodoBoard {
         </div>
       </section>
 
-      <section class="p-section t-projects"></section>`;
+      <div class="t-layout">
+        <section class="p-section t-projects"></section>
+        <aside class="t-people" aria-label="People">
+          <div class="t-people-head">
+            <h2>People</h2>
+            <button class="t-btn small ghost" type="button" data-new-person disabled>+ Add</button>
+          </div>
+          <div class="t-people-list"></div>
+        </aside>
+      </div>`;
   }
 
   // ---------------------------------------------------------------- network
@@ -156,6 +172,7 @@ export class TodoBoard {
       const host = new URL(this.api.url).hostname;
       conn.textContent = `${this.api.label} · ${/^[\d.]+$/.test(host) ? host : host.split('.')[0]}`;
       this.el.querySelector('[data-new-project]').disabled = false;
+      this.el.querySelector('[data-new-person]').disabled = false;
       await this._refresh();
     } catch (e) {
       this.api = null;
@@ -186,8 +203,10 @@ export class TodoBoard {
   async _refresh() {
     if (!this.api) return;
     try {
-      this.projects = await this._req(
-        '/projects?select=*,todos(*)&order=position.asc,id.asc&todos.order=due.asc.nullslast,id.asc');
+      [this.projects, this.people] = await Promise.all([
+        this._req('/projects?select=*,todos(*,key,people(id,name,color))&order=position.asc,id.asc&todos.order=due.asc.nullslast,id.asc'),
+        this._req('/people?order=name.asc'),
+      ]);
     } catch (e) {
       return this._connect();
     }
@@ -229,6 +248,7 @@ export class TodoBoard {
     else this.grid.querySelector(':scope > .t-empty')?.remove();
     this._flip(before);
     this.drawn = true;
+    this._renderPeople();
 
     if (this.openId != null) {
       const p = this._project(this.openId);
@@ -239,19 +259,106 @@ export class TodoBoard {
 
   _fillCard(card, p) {
     const { done, total, pct } = progress(p.todos);
-    const counts = STATUSES.map((s) => `<span>${p.todos.filter((t) => t.status === s.id).length} ${s.title.toLowerCase()}</span>`).join('');
-    const late = p.todos.filter((t) => t.due && t.status !== 'done' && t.due < today()).length;
     card.style.setProperty('--accent', p.color);
-    card.setAttribute('aria-label', `${p.name}, ${pct}% done`);
+    card.setAttribute('aria-label', `${p.key}, ${p.name}, ${pct}% done`);
     paintFill(card.querySelector('.t-fill'), pct, p.color);
     card.querySelector('.t-body').innerHTML = `
+      <span class="t-key">${esc(p.key)}</span>
       <h3>${esc(p.name)}</h3>
       ${p.description ? `<p>${esc(p.description)}</p>` : ''}
-      <div class="t-counts">${counts}${late ? `<span class="late">${late} overdue</span>` : ''}</div>
+      ${this._overview(p.todos)}
       <div class="t-score">
         <span class="t-big">${pct}%</span>
         <span class="t-frac">${total ? `${done} of ${total} done` : 'no todos yet'}</span>
       </div>`;
+  }
+
+  /**
+   * Every todo of a project at a glance, inside its block: what is in hand
+   * first, then what is waiting, one line each; what is done shrinks to a row
+   * of small struck-through tags underneath.
+   */
+  _overview(todos) {
+    if (!todos.length) return '<p class="t-mini-none">No todos yet.</p>';
+    const open = [...todos.filter((t) => t.status === 'doing'), ...todos.filter((t) => t.status === 'todo')];
+    const finished = todos.filter((t) => t.status === 'done');
+    const line = (t) => {
+      const late = t.due && t.due < today();
+      const due = t.due
+        ? `<span class="t-mini-due${late ? ' late' : ''}">${new Date(t.due + 'T00:00').toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</span>`
+        : '';
+      return `
+        <li class="${t.status}" title="${esc(t.title)}${t.status === 'doing' ? ' (in progress)' : ''}">
+          <span class="t-mini-dot" aria-hidden="true"></span>
+          <span class="t-mini-key">${esc(t.key)}</span>
+          <span class="t-mini-title">${esc(t.title)}</span>
+          ${due}
+          ${this._avatars(t.people)}
+        </li>`;
+    };
+    return `
+      ${open.length ? `<ul class="t-mini">${open.map(line).join('')}</ul>` : ''}
+      ${finished.length ? `<div class="t-mini-done">${finished.map((t) => `<span title="${esc(t.key)} ${esc(t.title)} (done)"><b>${esc(t.key)}</b> ${esc(t.title)}</span>`).join('')}</div>` : ''}`;
+  }
+
+  /** Initials in small coloured circles, for a todo's people. */
+  _avatars(people) {
+    if (!people?.length) return '';
+    return `<span class="t-avs">${people.map((m) =>
+      `<span class="t-av" style="--pc:${m.color}" title="${esc(m.name)}">${esc(initials(m.name))}</span>`).join('')}</span>`;
+  }
+
+  /**
+   * The People column: everyone, with what they are on now (in progress first,
+   * then waiting) and how much they have finished. Open todos nobody has are
+   * gathered at the bottom, so nothing falls through.
+   */
+  _renderPeople() {
+    const all = this.projects.flatMap((p) => p.todos.map((t) => ({ ...t, project: p })));
+    const open = (list) => [...list.filter((t) => t.status === 'doing'), ...list.filter((t) => t.status === 'todo')];
+    const line = (t) => `
+      <li class="${t.status}" data-open-todo="${t.id}" style="--accent:${t.project.color}" title="${esc(t.key)} ${esc(t.title)} · ${esc(t.project.name)}">
+        <span class="t-mini-dot" aria-hidden="true"></span>
+        <span class="t-mini-key">${esc(t.key)}</span>
+        <span class="t-mini-title">${esc(t.title)}</span>
+      </li>`;
+
+    const people = this.people.map((m) => {
+      const mine = all.filter((t) => t.people.some((x) => x.id === m.id));
+      const now = open(mine);
+      const done = mine.length - now.length;
+      return `
+        <section class="t-person" style="--pc:${m.color}">
+          <button class="t-person-head" type="button" data-edit-person="${m.id}" title="Edit ${esc(m.name)}">
+            <span class="t-av big">${esc(initials(m.name))}</span>
+            <span class="t-person-name">${esc(m.name)}</span>
+            <span class="t-person-count">${now.length} open${done ? ` · ${done} done` : ''}</span>
+          </button>
+          ${now.length ? `<ul class="t-mini">${now.map(line).join('')}</ul>` : '<p class="t-person-free">Nothing assigned.</p>'}
+        </section>`;
+    }).join('');
+
+    const loose = open(all.filter((t) => !t.people.length));
+    this.peopleList.innerHTML = `
+      ${people || '<p class="t-empty">No people yet. Add the first one.</p>'}
+      ${loose.length ? `
+        <section class="t-person t-unassigned">
+          <div class="t-person-head"><span class="t-person-name">Unassigned</span><span class="t-person-count">${loose.length} open</span></div>
+          <ul class="t-mini">${loose.map(line).join('')}</ul>
+        </section>` : ''}`;
+  }
+
+  _onPeopleClick(e) {
+    const edit = e.target.closest('[data-edit-person]');
+    if (edit) return this._editPerson(this.people.find((m) => m.id === Number(edit.dataset.editPerson)));
+    const li = e.target.closest('[data-open-todo]');
+    if (!li) return;
+    // open the todo where it lives: its project's popup, with the editor on top
+    const id = Number(li.dataset.openTodo);
+    const project = this.projects.find((p) => p.todos.some((t) => t.id === id));
+    if (!project) return;
+    this._openProject(project.id);
+    this._editTodo(project.todos.find((t) => t.id === id));
   }
 
   _rects() {
@@ -551,7 +658,7 @@ export class TodoBoard {
     this.popupBody.style.setProperty('--accent', p.color);
     this.popupBody.innerHTML = `
       <header class="t-popup-head">
-        <span class="t-swatch" aria-hidden="true"></span>
+        <span class="t-key">${esc(p.key)}</span>
         <h2>${esc(p.name)}</h2>
         <button class="t-btn ghost" type="button" data-edit-project>Edit project</button>
         <button class="t-btn" type="button" data-new-todo>+ New todo</button>
@@ -570,10 +677,11 @@ export class TodoBoard {
     const next = STATUSES.find((s) => s.id === NEXT[t.status]);
     return `
       <article class="p-card t-card" data-id="${t.id}">
+        <span class="t-key">${esc(t.key)}</span>
         <h4>${esc(t.title)}</h4>
         ${t.notes ? `<p>${esc(t.notes)}</p>` : ''}
         <div class="t-meta">
-          ${t.owner ? `<span class="t-owner">${esc(t.owner)}</span>` : ''}
+          ${t.people.map((m) => `<span class="t-owner" style="--pc:${m.color}">${esc(m.name)}</span>`).join('')}
           ${due}
           <button class="t-move" type="button" data-move="${next.id}" title="Move to ${next.title}">→ ${next.title}</button>
         </div>
@@ -611,7 +719,10 @@ export class TodoBoard {
         d.close();
         await this._refresh();
       } catch (err) {
-        msg.textContent = `Could not save: ${err.message}`;
+        msg.textContent = /projects_key_unique/.test(err.message) ? 'That key is already used by another project.'
+          : /projects_key_format/.test(err.message) ? 'The key must be 2 to 6 letters.'
+          : /people_name_unique/.test(err.message) ? 'Someone with that name is already here.'
+          : `Could not save: ${err.message}`;
         msg.hidden = false;
       } finally {
         buttons.forEach((b) => { b.disabled = false; });
@@ -647,10 +758,20 @@ export class TodoBoard {
       </label>`).join('');
 
     this.openProjectForm = this._dialog(`
-      <label>Name <input name="name" required maxlength="120" autocomplete="off" /></label>
+      <div class="t-row t-row-key">
+        <label>Name <input name="name" required maxlength="120" autocomplete="off" /></label>
+        <label>Key <input name="key" maxlength="6" pattern="[A-Za-z]{2,6}" autocomplete="off" spellcheck="false"
+          placeholder="auto" title="2 to 6 letters, e.g. LAB" /></label>
+      </div>
+      <p class="t-form-note" data-key-note>Short and speakable: todos are named after it, like LAB-3. Leave empty to pick one from the name.</p>
       <label>Description <textarea name="description" rows="2"></textarea></label>
       <fieldset class="t-colors"><legend>Colour</legend>${swatches}</fieldset>`, {
-      read: (f) => ({ name: f.get('name').trim(), description: f.get('description').trim(), color: f.get('color') }),
+      read: (f) => ({
+        name: f.get('name').trim(),
+        key: f.get('key').trim().toUpperCase() || null,      // empty: the database picks one
+        description: f.get('description').trim(),
+        color: f.get('color'),
+      }),
       onSave: async (fields) => {
         if (this.editingProject) {
           await this._req(`/projects?id=eq.${this.editingProject.id}`, { method: 'PATCH', body: JSON.stringify(fields) });
@@ -672,8 +793,12 @@ export class TodoBoard {
   _editProject(project) {
     if (!this.api) return;
     this.editingProject = project;
+    this.el.querySelector('[data-key-note]').textContent = project
+      ? `Changing it renames every todo in the project too (${project.key}-1 becomes NEW-1).`
+      : 'Short and speakable: todos are named after it, like LAB-3. Leave empty to pick one from the name.';
     this.openProjectForm(project ? 'Edit project' : 'New project', project, (form, p) => {
       form.elements.name.value = p.name;
+      form.elements.key.value = p.key;
       form.elements.description.value = p.description;
       const radio = [...form.elements.color].find((r) => r.value === p.color);
       if (radio) radio.checked = true;
@@ -684,26 +809,37 @@ export class TodoBoard {
     this.openTodoForm = this._dialog(`
       <label>Title <input name="title" required maxlength="200" autocomplete="off" /></label>
       <label>Notes <textarea name="notes" rows="3"></textarea></label>
-      <div class="t-row">
+      <div class="t-row t-row-2">
         <label>Status
           <select name="status">${STATUSES.map((s) => `<option value="${s.id}">${s.title}</option>`).join('')}</select>
         </label>
-        <label>Owner <input name="owner" autocomplete="off" /></label>
         <label>Due <input name="due" type="date" /></label>
-      </div>`, {
+      </div>
+      <fieldset class="t-pick"><legend>People</legend><div data-people-pick></div></fieldset>`, {
       read: (f) => ({
         title: f.get('title').trim(),
         notes: f.get('notes').trim(),
         status: f.get('status'),
-        owner: f.get('owner').trim(),
         due: f.get('due') || null,
+        people: f.getAll('person').map(Number),
       }),
-      onSave: async (fields) => {
-        if (this.editingTodo) {
-          await this._req(`/todos?id=eq.${this.editingTodo.id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+      onSave: async ({ people, ...fields }) => {
+        let id = this.editingTodo?.id;
+        if (id) {
+          await this._req(`/todos?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(fields) });
         } else {
-          await this._req('/todos', { method: 'POST', body: JSON.stringify({ ...fields, project_id: this.openId }) });
+          [{ id }] = await this._req('/todos', { method: 'POST', body: JSON.stringify({ ...fields, project_id: this.openId }) });
         }
+        // make the assignees exactly the ticked people: add the new, drop the rest
+        if (people.length) {
+          await this._req('/todo_assignees', {
+            method: 'POST',
+            body: JSON.stringify(people.map((person_id) => ({ todo_id: id, person_id }))),
+            headers: { Prefer: 'resolution=ignore-duplicates,return=minimal' },
+          });
+        }
+        await this._req(`/todo_assignees?todo_id=eq.${id}${people.length ? `&person_id=not.in.(${people.join(',')})` : ''}`,
+          { method: 'DELETE', headers: { Prefer: 'return=minimal' } });
       },
       onDelete: {
         confirm: () => 'Delete this todo?',
@@ -712,11 +848,59 @@ export class TodoBoard {
     });
   }
 
+  _personDialog() {
+    const swatches = COLORS.map((c, i) => `
+      <label class="t-swatch-opt" style="--c:${c}">
+        <input type="radio" name="color" value="${c}"${i === 0 ? ' checked' : ''} />
+        <span></span>
+      </label>`).join('');
+
+    this.openPersonForm = this._dialog(`
+      <label>Name <input name="name" required maxlength="60" autocomplete="off" /></label>
+      <fieldset class="t-colors"><legend>Colour</legend>${swatches}</fieldset>`, {
+      read: (f) => ({ name: f.get('name').trim(), color: f.get('color') }),
+      onSave: async (fields) => {
+        if (this.editingPerson) {
+          await this._req(`/people?id=eq.${this.editingPerson.id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+        } else {
+          await this._req('/people', { method: 'POST', body: JSON.stringify(fields) });
+        }
+      },
+      onDelete: {
+        confirm: () => {
+          const n = this.projects.flatMap((p) => p.todos).filter((t) => t.people.some((m) => m.id === this.editingPerson.id)).length;
+          return `Remove ${this.editingPerson.name}?${n ? ` Their ${n} todo${n === 1 ? '' : 's'} stay, just without them.` : ''}`;
+        },
+        run: () => this._req(`/people?id=eq.${this.editingPerson.id}`, { method: 'DELETE' }),
+      },
+    });
+  }
+
+  _editPerson(person) {
+    if (!this.api) return;
+    this.editingPerson = person;
+    this.openPersonForm(person ? `Edit ${person.name}` : 'Add a person', person, (form, m) => {
+      form.elements.name.value = m.name;
+      const radio = [...form.elements.color].find((r) => r.value === m.color);
+      if (radio) radio.checked = true;
+    });
+  }
+
   _editTodo(todo) {
     if (!this.api || this.openId == null) return;
     this.editingTodo = todo;
-    this.openTodoForm(todo ? 'Edit todo' : 'New todo', todo, (form, t) => {
-      for (const k of ['title', 'notes', 'status', 'owner', 'due']) form.elements[k].value = t[k] ?? '';
+    const pick = this.el.querySelector('[data-people-pick]');
+    pick.innerHTML = this.people.length
+      ? this.people.map((m) => `
+          <label class="t-pick-opt" style="--pc:${m.color}">
+            <input type="checkbox" name="person" value="${m.id}" />
+            <span><span class="t-av">${esc(initials(m.name))}</span>${esc(m.name)}</span>
+          </label>`).join('')
+      : '<p class="t-form-note">No people yet. Add them in the People column.</p>';
+    this.openTodoForm(todo ? `Edit ${todo.key}` : `New todo in ${this._project(this.openId).key}`, todo, (form, t) => {
+      for (const k of ['title', 'notes', 'status', 'due']) form.elements[k].value = t[k] ?? '';
+      const mine = new Set(t.people.map((m) => m.id));
+      form.querySelectorAll('input[name="person"]').forEach((c) => { c.checked = mine.has(Number(c.value)); });
     });
   }
 }
