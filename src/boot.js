@@ -88,5 +88,10 @@ const asked = new URLSearchParams(location.search).get('mode');
 let remembered = null;
 try { remembered = localStorage.getItem(KEY); } catch { /* ignore */ }
 
-if (asked === 'page' || asked === 'building') enter(asked);
+// The lab todo board: unlisted, never remembered as a preference.
+if (asked === 'todos') {
+  window.AI_MODE = 'todos';
+  document.body.classList.add('mode-page');   // borrow the reading layout
+  import('./todos/TodoBoard.js').then(({ TodoBoard }) => new TodoBoard().mount());
+} else if (asked === 'page' || asked === 'building') enter(asked);
 else chooser(remembered);

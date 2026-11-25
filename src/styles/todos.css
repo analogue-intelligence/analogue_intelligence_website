@@ -1,0 +1,164 @@
+/* ---------------------------------------------------------------------------
+   todos.css: the lab project dashboard (?mode=todos). Builds on plain.css:
+   same paper, same ink, same cards. Only what the dashboard adds lives here.
+   --------------------------------------------------------------------------- */
+
+.t-conn {
+  margin-left: auto; font-family: 'Space Mono', monospace; font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft);
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--paper-2);
+}
+.t-conn::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; background: #b9ad97; vertical-align: 1px; }
+.t-conn[data-state="ok"]::before { background: #5e8a6a; }
+.t-conn[data-state="down"]::before { background: #c0563f; }
+
+.t-head { padding-bottom: 0; }
+.t-head-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.t-head h1 { margin: 0 auto 0 0; font-family: 'Syne', Georgia, serif; font-weight: 800; font-size: clamp(30px, 5vw, 48px); letter-spacing: -0.02em; }
+.t-hint { margin: 18px 0 0; font-size: 13px; color: var(--ink-soft); }
+
+.t-error { margin-top: 20px; padding: 16px 18px; border: 1px solid rgba(192, 86, 63, 0.35); border-radius: 12px; background: rgba(192, 86, 63, 0.07); }
+.t-error p { margin: 0 0 8px; font-size: 14.5px; line-height: 1.55; }
+.t-error-detail { color: var(--ink-soft); font-family: 'Space Mono', monospace; font-size: 12px !important; }
+
+/* ------------------------------------------------------------ progress bar */
+.t-progress { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.t-bar { flex: 1 1 160px; height: 8px; border-radius: 999px; background: rgba(43, 38, 32, 0.09); overflow: hidden; }
+.t-bar span { display: block; height: 100%; border-radius: inherit; transition: width 600ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 600ms; }
+.t-pct { font-family: 'Space Mono', monospace; font-weight: 700; font-size: 13px; min-width: 4ch; text-align: right; }
+.t-frac { font-size: 12px; color: var(--ink-soft); }
+.t-progress .t-frac { flex-basis: 100%; }
+
+/* ------------------------------------------------------- project dashboard
+   auto-fit, not auto-fill: with only a few projects the blocks stretch to
+   fill the row, and shrink back as more arrive. */
+.p-section.t-projects {
+  display: grid; gap: clamp(14px, 1.6vw, 20px); border-top: 0;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.t-project {
+  cursor: grab; user-select: none; min-height: 190px; padding: 0;
+  transition: border-color 220ms, box-shadow 220ms;
+}
+.t-project:hover { box-shadow: 0 12px 26px rgba(43, 38, 32, 0.1); }
+.t-project:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+/* the progress, filling the block from the left */
+.t-fill {
+  position: absolute; inset: 0 auto 0 0; width: 0;
+  border-right: 2px solid transparent;
+  background-clip: padding-box;
+  transition: width 700ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 700ms, border-color 700ms;
+}
+.t-project::before { z-index: 1; }
+.t-body { position: relative; flex: 1; display: flex; flex-direction: column; padding: 22px 20px 18px; }
+.t-project h3 { font-size: 21px; }
+.t-project .t-body > p { color: #3b342b; }
+.t-counts { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 12px; font-size: 12px; color: var(--ink-soft); }
+.t-counts .late { color: #a8432d; font-weight: 600; }
+.t-score { display: flex; align-items: baseline; gap: 10px; margin-top: auto; padding-top: 18px; }
+.t-big { font-family: 'Syne', Georgia, serif; font-weight: 800; font-size: 30px; line-height: 1; letter-spacing: -0.02em; }
+
+/* while dragging: the block left behind is a dashed slot, a copy follows the cursor */
+.t-project.t-placeholder { border: 2px dashed rgba(43, 38, 32, 0.25); background: transparent; box-shadow: none; }
+.t-project.t-placeholder > * { visibility: hidden; }
+.t-ghost {
+  position: fixed; z-index: 100; margin: 0; pointer-events: none; cursor: grabbing;
+  box-shadow: 0 26px 50px rgba(43, 38, 32, 0.28);
+}
+body.t-grabbing, body.t-grabbing * { cursor: grabbing !important; }
+
+.t-empty { margin: 4px 0; color: var(--ink-soft); font-size: 13.5px; font-style: italic; }
+
+/* --------------------------------------------------------------- the popup */
+.t-dialog.t-popup { width: min(1100px, calc(100vw - 32px)); max-height: calc(100vh - 48px); overflow: auto; }
+.t-popup-inner { padding: 22px clamp(16px, 3vw, 30px) 28px; }
+.t-popup-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.t-popup-head h2 { margin: 0 auto 0 0; font-family: 'Syne', Georgia, serif; font-weight: 800; font-size: clamp(24px, 3.4vw, 34px); letter-spacing: -0.02em; }
+.t-swatch { width: 18px; height: 18px; border-radius: 5px; background: var(--accent); flex: none; }
+.t-close {
+  width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(43, 38, 32, 0.18); background: transparent;
+  font: 22px/1 'Space Grotesk', system-ui, sans-serif; color: #2b2620; cursor: pointer;
+}
+.t-close:hover { border-color: #c9822f; }
+.t-popup-desc { margin: 10px 0 0; color: #5d5346; font-size: 15px; line-height: 1.55; max-width: 70ch; }
+.t-popup .t-progress { margin-top: 16px; max-width: 520px; }
+
+.t-board { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(12px, 1.6vw, 18px); align-items: stretch; margin-top: 24px; }
+@media (max-width: 760px) { .t-board { grid-template-columns: 1fr; } }
+.t-col h3 {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 12px;
+  font-family: 'Space Mono', monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--accent); padding-bottom: 8px; border-bottom: 2px solid var(--accent);
+}
+.t-count { font-weight: 400; color: #5d5346; letter-spacing: 0; }
+.t-col { border-radius: 12px; padding: 6px; margin: -6px; transition: background-color 160ms; }
+.t-col.t-over { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.t-list { display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
+.t-list:has(.t-card) .t-empty { display: none; }
+.t-card { user-select: none; }
+.t-card.t-placeholder { border: 2px dashed rgba(43, 38, 32, 0.25); background: transparent; box-shadow: none; }
+.t-card.t-placeholder > * { visibility: hidden; }
+.t-placeholder::before { display: none; }
+
+.t-card { cursor: grab; padding: 16px 16px 12px; background: #fffaf0; }
+.t-card h4 { margin: 0 0 6px; font-family: 'Syne', Georgia, serif; font-weight: 700; font-size: 16px; line-height: 1.3; }
+.t-card p { font-size: 13.5px; }
+.t-col[data-status="done"] .t-card h4 { text-decoration: line-through; text-decoration-color: rgba(43, 38, 32, 0.35); }
+.t-col[data-status="done"] .t-card { opacity: 0.75; }
+.t-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; }
+.t-owner, .t-due { padding: 3px 9px; border-radius: 999px; background: #efe7d7; border: 1px solid rgba(43, 38, 32, 0.14); color: #5d5346; }
+.t-due.late { color: #a8432d; border-color: rgba(192, 86, 63, 0.4); }
+.t-move {
+  margin-left: auto; font: inherit; font-weight: 600; color: var(--accent); background: none;
+  border: 0; padding: 3px 0; cursor: pointer; border-bottom: 1px solid transparent;
+}
+.t-move:hover { border-bottom-color: currentColor; }
+
+/* ------------------------------------------------- buttons, matching .p-btn */
+.t-btn {
+  font: 600 14px 'Space Grotesk', system-ui, sans-serif; cursor: pointer;
+  padding: 10px 18px; border-radius: 999px; background: #2b2620; color: #f7f1e4; border: 1px solid #2b2620;
+  transition: transform 180ms, box-shadow 180ms;
+}
+.t-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(43, 38, 32, 0.16); }
+.t-btn:disabled { opacity: 0.5; cursor: default; transform: none; }
+.t-btn.ghost { background: transparent; color: #2b2620; border-color: rgba(43, 38, 32, 0.18); }
+.t-btn.danger { background: transparent; color: #a8432d; border-color: rgba(192, 86, 63, 0.4); }
+
+/* ------------------------------------------------------------------ dialogs */
+.t-dialog {
+  width: min(560px, calc(100vw - 32px)); padding: 0; border: 1px solid rgba(43, 38, 32, 0.14); border-radius: 14px;
+  background: #f7f1e4; color: #2b2620; box-shadow: 0 30px 70px rgba(43, 38, 32, 0.28);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+}
+.t-dialog::backdrop { background: rgba(36, 31, 26, 0.45); backdrop-filter: blur(3px); }
+.t-dialog[open] { animation: t-pop 240ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+@keyframes t-pop { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
+.t-dialog form { display: flex; flex-direction: column; gap: 14px; padding: 22px; }
+.t-form h2 { margin: 0 0 4px; font-family: 'Syne', Georgia, serif; font-size: 22px; }
+.t-dialog label { display: flex; flex-direction: column; gap: 6px; font-size: 11px; font-family: 'Space Mono', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #5d5346; }
+.t-dialog input, .t-dialog textarea, .t-dialog select {
+  font: 15px 'Space Grotesk', system-ui, sans-serif; color: #2b2620; text-transform: none; letter-spacing: 0;
+  padding: 9px 11px; border: 1px solid rgba(43, 38, 32, 0.18); border-radius: 8px; background: #fffaf0;
+}
+.t-dialog input:focus, .t-dialog textarea:focus, .t-dialog select:focus { outline: 2px solid #c9822f; outline-offset: 1px; }
+.t-dialog textarea { resize: vertical; }
+.t-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 520px) { .t-row { grid-template-columns: 1fr; } }
+.t-colors { display: flex; flex-wrap: wrap; gap: 10px; margin: 0; padding: 0; border: 0; }
+.t-colors legend { padding: 0; margin-bottom: 8px; font: 11px 'Space Mono', monospace; letter-spacing: 0.12em; text-transform: uppercase; color: #5d5346; }
+.t-dialog .t-swatch-opt { display: block; cursor: pointer; }
+.t-swatch-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.t-swatch-opt span { display: block; width: 30px; height: 30px; border-radius: 8px; background: var(--c); border: 3px solid #f7f1e4; box-shadow: 0 0 0 1px rgba(43, 38, 32, 0.18); }
+.t-swatch-opt input:checked + span { box-shadow: 0 0 0 2px #2b2620; }
+.t-swatch-opt input:focus-visible + span { outline: 2px solid #c9822f; outline-offset: 3px; }
+
+.t-form-error { margin: 0; color: #a8432d; font-size: 13.5px; }
+.t-actions { display: flex; gap: 10px; align-items: center; margin-top: 4px; }
+.t-spacer { flex: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  .t-fill, .t-bar span, .t-project, .t-btn { transition: none; }
+  .t-dialog[open] { animation: none; }
+}
