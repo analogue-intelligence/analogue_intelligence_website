@@ -68,7 +68,10 @@ drop trigger if exists todos_touch on lab.todos;
 create trigger todos_touch before update on lab.todos
   for each row execute function lab.touch_updated_at();
 
--- example projects (only when there are none) ---------------------------------
+-- example data, only into an empty database ----------------------------------
+-- (checked once, up front, so re-running this never brings back a deleted example)
+select not exists (select 1 from lab.projects) as fresh \gset
+\if :fresh
 insert into lab.projects (name, description, color)
 select * from (values
   ('ZEPHYR',          'Navigation for drones in cluttered, moving environments.', '#4f7d93'),
@@ -78,6 +81,7 @@ select * from (values
   ('General',         'Everything that does not belong to a project yet.',        '#c9822f')
 ) as seed(name, description, color)
 where not exists (select 1 from lab.projects);
+\endif
 
 -- projects that have never been placed go to the end, in the order they were made
 update lab.projects p set position = sub.pos
@@ -105,6 +109,7 @@ update lab.todos set project_id = (select min(id) from lab.projects) where proje
 
 alter table lab.todos alter column project_id set not null;
 
+\if :fresh
 -- a few more examples, so the progress bars have something to show
 insert into lab.todos (project_id, title, notes, status, due)
 select p.id, seed.title, seed.notes, seed.status, seed.due
@@ -119,6 +124,7 @@ from (values
 ) as seed(project, title, notes, status, due)
 join lab.projects p on p.name = seed.project
 where not exists (select 1 from lab.todos where title = seed.title);
+\endif
 
 -- roles for PostgREST ---------------------------------------------------------
 select not exists (select 1 from pg_roles where rolname = 'web_anon') as need_anon \gset
