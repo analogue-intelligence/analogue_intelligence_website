@@ -21,6 +21,10 @@
 //
 // All usable endpoints are probed at once; the first to answer is used for
 // the rest of the visit.
+//
+// Live: every couple of seconds the page asks for a change counter that the
+// database bumps on any write (db/004_live.sql), and reloads only when it has
+// moved. So edits, deletes and additions from anywhere show up on their own.
 // -----------------------------------------------------------------------------
 
 export const ENDPOINTS = [
@@ -110,6 +114,7 @@ export class TodoBoard {
     this._todoDialog();
     this._personDialog();
     this._connect();
+    this._live();
   }
 
   _stylesheets() {
@@ -170,7 +175,8 @@ export class TodoBoard {
       this.api = await pickEndpoint();
       conn.dataset.state = 'ok';
       const host = new URL(this.api.url).hostname;
-      conn.textContent = `${this.api.label} · ${/^[\d.]+$/.test(host) ? host : host.split('.')[0]}`;
+      this.connLabel = `${this.api.label} · ${/^[\d.]+$/.test(host) ? host : host.split('.')[0]}`;
+      conn.textContent = this.connLabel;
       this.el.querySelector('[data-new-project]').disabled = false;
       this.el.querySelector('[data-new-person]').disabled = false;
       await this._refresh();
@@ -203,10 +209,14 @@ export class TodoBoard {
   async _refresh() {
     if (!this.api) return;
     try {
-      [this.projects, this.people] = await Promise.all([
+      const [projects, people, changes] = await Promise.all([
         this._req('/projects?select=*,todos(*,key,people(id,name,color))&order=position.asc,id.asc&todos.order=due.asc.nullslast,id.asc'),
         this._req('/people?order=name.asc'),
+        this._req('/changes?select=version').catch(() => []),   // live updates are optional
       ]);
+      this.projects = projects;
+      this.people = people;
+      this.version = changes[0]?.version;
     } catch (e) {
       return this._connect();
     }
@@ -215,10 +225,31 @@ export class TodoBoard {
 
   _project(id) { return this.projects.find((p) => p.id === id); }
 
+  /** Follow changes made anywhere: poll the change counter, reload when it moves. */
+  _live() {
+    const conn = this.el.querySelector('.t-conn');
+    const tick = async () => {
+      if (!this.api || document.hidden || this.checking) return;
+      this.checking = true;
+      try {
+        const [row] = await this._req('/changes?select=version');
+        if (conn.dataset.state !== 'ok') { conn.dataset.state = 'ok'; conn.textContent = this.connLabel; }
+        if (row && row.version !== this.version) await this._refresh();
+      } catch {
+        conn.dataset.state = 'down';
+        conn.textContent = 'Connection lost · retrying';
+      } finally {
+        this.checking = false;
+      }
+    };
+    setInterval(tick, 2000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+  }
+
   // -------------------------------------------------------------- dashboard
 
   _render() {
-    if (this.dragging) { this.pending = true; return; }   // never reshuffle under the cursor
+    if (this.dragging || this.holding) { this.pending = true; return; }   // never reshuffle under the cursor
 
     // Keyed update: existing blocks are kept (so their fill can animate and
     // they can slide to new places), new ones are made, stale ones removed.
@@ -406,6 +437,7 @@ export class TodoBoard {
       const card = e.target.closest('.t-project');
       if (!card || e.button !== 0 || e.pointerType === 'touch') return;
       e.preventDefault();                           // no text selection while dragging
+      this.holding = true;
       const start = { x: e.clientX, y: e.clientY };
       let drag = null;
 
@@ -420,6 +452,8 @@ export class TodoBoard {
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
         window.removeEventListener('pointercancel', up);
+        this.holding = false;
+        if (!drag && this.pending) { this.pending = false; this._render(); }
         if (drag) {
           drag.end();
           this.justDragged = true;                  // swallow the click that follows
@@ -523,6 +557,7 @@ export class TodoBoard {
       const card = e.target.closest('.t-card');
       if (!card || e.button !== 0 || e.pointerType === 'touch' || e.target.closest('button')) return;
       e.preventDefault();
+      this.holding = true;
       const start = { x: e.clientX, y: e.clientY };
       let drag = null;
       const move = (ev) => {
@@ -536,6 +571,8 @@ export class TodoBoard {
         window.removeEventListener('pointermove', move);
         window.removeEventListener('pointerup', up);
         window.removeEventListener('pointercancel', up);
+        this.holding = false;
+        if (!drag && this.pending) { this.pending = false; this._render(); }
         if (drag) {
           drag.end();
           this.justDragged = true;
@@ -774,7 +811,8 @@ export class TodoBoard {
       }),
       onSave: async (fields) => {
         if (this.editingProject) {
-          await this._req(`/projects?id=eq.${this.editingProject.id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+          const rows = await this._req(`/projects?id=eq.${this.editingProject.id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+          if (!rows.length) throw new Error('this project was deleted in the meantime.');
         } else {
           const position = Math.max(0, ...this.projects.map((p) => p.position)) + 1;
           await this._req('/projects', { method: 'POST', body: JSON.stringify({ ...fields, position }) });
@@ -826,7 +864,8 @@ export class TodoBoard {
       onSave: async ({ people, ...fields }) => {
         let id = this.editingTodo?.id;
         if (id) {
-          await this._req(`/todos?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+          const rows = await this._req(`/todos?id=eq.${id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+          if (!rows.length) throw new Error('this todo was deleted in the meantime.');
         } else {
           [{ id }] = await this._req('/todos', { method: 'POST', body: JSON.stringify({ ...fields, project_id: this.openId }) });
         }
@@ -861,7 +900,8 @@ export class TodoBoard {
       read: (f) => ({ name: f.get('name').trim(), color: f.get('color') }),
       onSave: async (fields) => {
         if (this.editingPerson) {
-          await this._req(`/people?id=eq.${this.editingPerson.id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+          const rows = await this._req(`/people?id=eq.${this.editingPerson.id}`, { method: 'PATCH', body: JSON.stringify(fields) });
+          if (!rows.length) throw new Error('this person was removed in the meantime.');
         } else {
           await this._req('/people', { method: 'POST', body: JSON.stringify(fields) });
         }

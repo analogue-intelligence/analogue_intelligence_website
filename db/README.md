@@ -27,6 +27,7 @@ They are set in `ENDPOINTS` at the top of `src/todos/TodoBoard.js`.
    ```
    psql -h 192.168.137.1 -U postgres -f db/002_keys.sql
    psql -h 192.168.137.1 -U postgres -f db/003_people.sql
+   psql -h 192.168.137.1 -U postgres -f db/004_live.sql
    ```
 
 2. Download `postgrest-vX.Y.Z-windows-x64.zip` from

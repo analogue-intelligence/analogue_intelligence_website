@@ -10,6 +10,10 @@
 }
 .t-conn::before { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 8px; background: #b9ad97; vertical-align: 1px; }
 .t-conn[data-state="ok"]::before { background: #5e8a6a; }
+/* the dot breathes while the page is following the database live */
+.t-conn[data-state="ok"]::before { animation: t-live 2s ease-in-out infinite; }
+@keyframes t-live { 50% { box-shadow: 0 0 0 4px rgba(94, 138, 106, 0.18); } }
+@media (prefers-reduced-motion: reduce) { .t-conn::before { animation: none !important; } }
 .t-conn[data-state="down"]::before { background: #c0563f; }
 
 .t-head { padding-bottom: 0; }
