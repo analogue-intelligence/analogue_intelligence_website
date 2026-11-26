@@ -212,13 +212,25 @@ export class TodoBoard {
     }
   }
 
-  async _req(path, opts = {}) {
+  async _req(path, opts = {}, retry = true) {
     if (!this.api) throw new Error('Not connected');
-    const r = await fetch(`${this.api.url}${path}`, {
-      cache: 'no-store',
-      ...opts,
-      headers: { 'Content-Type': 'application/json', Prefer: 'return=representation', ...opts.headers },
-    });
+    let r;
+    try {
+      r = await fetch(`${this.api.url}${path}`, {
+        cache: 'no-store',
+        ...opts,
+        headers: { 'Content-Type': 'application/json', Prefer: 'return=representation', ...opts.headers },
+      });
+    } catch (e) {
+      // A network-level failure (no response at all). Browsers now gate
+      // requests from a public site to a private address (the Tailscale
+      // 100.x address) behind a local-network-access check, and Firefox can
+      // fail a request that races that check. One quiet retry covers it.
+      // Reads only: a write might have landed before the connection dropped.
+      if (!retry || e.name === 'AbortError' || (opts.method && opts.method !== 'GET')) throw e;
+      await new Promise((ok) => setTimeout(ok, 300));
+      return this._req(path, opts, false);
+    }
     if (!r.ok) {
       let msg = `${r.status}`;
       try { msg = (await r.json()).message || msg; } catch { /* not json */ }
@@ -231,11 +243,11 @@ export class TodoBoard {
   async _refresh() {
     if (!this.api) return;
     try {
-      const [projects, people, changes] = await Promise.all([
-        this._req('/projects?select=*,todos(*,key,people(id,name,color))&order=position.asc,id.asc&todos.order=due.asc.nullslast,id.asc'),
-        this._req('/people?order=name.asc'),
-        this._req('/changes?select=version').catch(() => []),   // live updates are optional
-      ]);
+      // One after another, not in parallel: concurrent requests can race the
+      // browser's local-network-access check (see _req). Each is ~0.1 s.
+      const projects = await this._req('/projects?select=*,todos(*,key,people(id,name,color))&order=position.asc,id.asc&todos.order=due.asc.nullslast,id.asc');
+      const people = await this._req('/people?order=name.asc');
+      const changes = await this._req('/changes?select=version').catch(() => []);   // live updates are optional
       this.projects = projects;
       this.people = people;
       this.version = changes[0]?.version;
