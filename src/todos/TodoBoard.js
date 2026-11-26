@@ -19,8 +19,11 @@
 //                 itself served over http (a local copy of the site). It is
 //                 left out on https rather than tried and blocked.
 //
-// All usable endpoints are probed at once; the first to answer is used for
-// the rest of the visit.
+// All usable endpoints are probed at once; the first to answer is used until
+// it stops answering. Tailscale can take several seconds to wake a quiet
+// connection, so the probe is patient, one failed request is not treated as an
+// outage, and when the database really is unreachable the page keeps trying
+// on its own instead of waiting for a click.
 //
 // Live: every couple of seconds the page asks for a change counter that the
 // database bumps on any write (db/004_live.sql), and reloads only when it has
@@ -53,17 +56,27 @@ const calm = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
 const EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 
 /** Resolves to the first endpoint that answers, or rejects if none do. */
-async function pickEndpoint(timeout = 4000) {
+async function pickEndpoint(timeout = 12000) {
   const probe = async (ep) => {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), timeout);
     try {
       const r = await fetch(`${ep.url}/projects?limit=1`, { signal: ctl.signal, cache: 'no-store' });
-      if (!r.ok) throw new Error(`${ep.url} answered ${r.status}`);
+      if (!r.ok) throw new Error(`answered ${r.status}`);
       return ep;
+    } catch (e) {
+      // "Failed to fetch" covers DNS, TLS, CORS and the browser refusing a
+      // local-network request; say which endpoint, so the console is useful.
+      const why = e.name === 'AbortError' ? `no answer in ${timeout / 1000} s` : e.message;
+      console.warn(`[todos] ${ep.url}: ${why}`, e);
+      throw new Error(`${ep.url}: ${why}`);
     } finally { clearTimeout(t); }
   };
-  return Promise.any(ENDPOINTS.map(probe));
+  try {
+    return await Promise.any(ENDPOINTS.map(probe));
+  } catch (e) {
+    throw new Error((e.errors || [e]).map((x) => x.message).join('; '));
+  }
 }
 
 /** Done, total and percentage for a list of todos. */
@@ -166,27 +179,36 @@ export class TodoBoard {
   // ---------------------------------------------------------------- network
 
   async _connect() {
+    if (this.connecting) return;
+    this.connecting = true;
+    clearTimeout(this.retryTimer);
     const conn = this.el.querySelector('.t-conn');
     const err = this.el.querySelector('.t-error');
     conn.dataset.state = 'probing';
     conn.textContent = 'Connecting…';
-    err.hidden = true;
     try {
       this.api = await pickEndpoint();
+      this.failures = 0;
+      this.retryIn = 0;
+      err.hidden = true;
       conn.dataset.state = 'ok';
       const host = new URL(this.api.url).hostname;
       this.connLabel = `${this.api.label} · ${/^[\d.]+$/.test(host) ? host : host.split('.')[0]}`;
       conn.textContent = this.connLabel;
       this.el.querySelector('[data-new-project]').disabled = false;
       this.el.querySelector('[data-new-person]').disabled = false;
+      this.connecting = false;
       await this._refresh();
     } catch (e) {
       this.api = null;
+      this.connecting = false;
+      // keep trying: 3 s, 6 s, 12 s ... at most every 30 s
+      this.retryIn = Math.min(30, (this.retryIn || 1.5) * 2);
+      this.retryTimer = setTimeout(() => this._connect(), this.retryIn * 1000);
       conn.dataset.state = 'down';
-      conn.textContent = 'Offline';
+      conn.textContent = `Offline · retrying in ${Math.round(this.retryIn)} s`;
       err.hidden = false;
-      err.querySelector('.t-error-detail').textContent =
-        `Tried ${ENDPOINTS.map((x) => x.url).join(' and ')}.`;
+      err.querySelector('.t-error-detail').textContent = `${e.message}.`;
     }
   }
 
@@ -217,8 +239,16 @@ export class TodoBoard {
       this.projects = projects;
       this.people = people;
       this.version = changes[0]?.version;
+      this.stale = false;
     } catch (e) {
-      return this._connect();
+      // Not fatal on its own: the live poll below retries, and only
+      // reconnects after the endpoint has failed several times in a row.
+      console.warn('[todos] refresh failed', e);
+      this.stale = true;
+      const conn = this.el.querySelector('.t-conn');
+      conn.dataset.state = 'down';
+      conn.textContent = 'Connection lost · retrying';
+      return;
     }
     this._render();
   }
@@ -233,11 +263,14 @@ export class TodoBoard {
       this.checking = true;
       try {
         const [row] = await this._req('/changes?select=version');
+        this.failures = 0;
         if (conn.dataset.state !== 'ok') { conn.dataset.state = 'ok'; conn.textContent = this.connLabel; }
-        if (row && row.version !== this.version) await this._refresh();
+        if (this.stale || (row && row.version !== this.version)) await this._refresh();
       } catch {
         conn.dataset.state = 'down';
         conn.textContent = 'Connection lost · retrying';
+        // a few misses in a row: probe again (maybe another endpoint answers)
+        if (++this.failures >= 3) { this.api = null; this._connect(); }
       } finally {
         this.checking = false;
       }
