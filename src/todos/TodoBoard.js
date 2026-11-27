@@ -236,7 +236,10 @@ export class TodoBoard {
       try { msg = (await r.json()).message || msg; } catch { /* not json */ }
       throw new Error(msg);
     }
-    return r.status === 204 ? null : r.json();
+    // "return=minimal" answers can be empty with any 2xx status (201 on insert,
+    // 204 on update), so only parse a body that is actually there.
+    const body = await r.text();
+    return body ? JSON.parse(body) : null;
   }
 
   /** Fetch everything again (it is small) and redraw. */
